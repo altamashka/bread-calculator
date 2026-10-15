@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bake log · Bread calculator</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/bakes.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <header class="app-header">
+        <h1>Bake log</h1>
+        <nav aria-label="Main navigation">
+          <a href="/">Calculator</a><a href="/methods">Methods</a
+          ><a href="/bakes" aria-current="page">Bake log</a>
+        </nav>
+      </header>
+      <p class="page-intro">
+        Record what you actually did and how the bread turned out. Each entry
+        keeps its own recipe and method version.
+      </p>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Results</h2>
+          <div class="inline">
+            <button id="csv">Export filtered CSV</button
+            ><button id="backup">Download full backup</button>
+          </div>
+        </div>
+        <div class="two">
+          <label
+            >Filter by recipe<select id="filterRecipe">
+              <option value="">All recipes</option>
+            </select></label
+          ><label
+            >Filter by method version<select id="filterMethod">
+              <option value="">All methods</option>
+            </select></label
+          >
+        </div>
+        <p id="logSummary" class="hint"></p>
+        <div class="table-scroll" tabindex="0" aria-label="Bake results">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Recipe</th>
+                <th>Method</th>
+                <th>Hydration</th>
+                <th>Result</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="logRows"></tbody>
+          </table>
+        </div>
+        <p id="emptyLog">No bakes recorded yet. Add your first result below.</p>
+        <details open>
+          <summary>Compare method versions</summary>
+          <div
+            class="table-scroll"
+            tabindex="0"
+            aria-label="Method comparisons"
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Bakes</th>
+                  <th>Average result</th>
+                  <th>Hydration range</th>
+                  <th>Average dough °C</th>
+                  <th>Average bulk</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonRows"></tbody>
+            </table>
+          </div>
+          <p class="hint">
+            Ratings are your own 1–5 scores. Blank measurements are excluded
+            from averages. Small samples and different recipes or temperatures
+            can make comparisons misleading; try changing one variable at a
+            time.
+          </p>
+        </details>
+      </section>
+      <section class="panel" id="bakeForm">
+        <div class="section-title">
+          <h2 id="bakeHeading">Record a bake</h2>
+          <button id="newBake" class="subtle">New entry</button>
+        </div>
+        <div class="two">
+          <label>Date<input id="bakeDate" type="date" required /></label
+          ><label
+            >Recipe used<select id="bakeRecipe">
+              <option value="">Choose a saved recipe…</option>
+            </select></label
+          >
+        </div>
+        <p id="bakeFormula" class="hint">
+          Save a recipe in the calculator first, then choose it here.
+        </p>
+        <label for="bakeMethod">Method actually used</label
+        ><select id="bakeMethod">
+          <option value="">No method recorded</option>
+        </select>
+        <p class="hint">
+          Changing the method here only affects this bake log entry. It does not
+          change the saved recipe or Mealie.
+        </p>
+        <details>
+          <summary>View recorded formula and method</summary>
+          <div id="bakeSnapshot"></div>
+        </details>
+        <div class="two">
+          <label
+            >Room temperature (°C)<input
+              id="roomTempC"
+              type="number"
+              min="-20"
+              max="60"
+              step="any" /></label
+          ><label
+            >Dough temperature after mixing (°C)<input
+              id="doughTempC"
+              type="number"
+              min="-20"
+              max="70"
+              step="any" /></label
+          ><label
+            >Actual bulk fermentation (min)<input
+              id="bulkMinutes"
+              type="number"
+              min="0"
+              max="10080"
+              step="any" /></label
+          ><label
+            >Actual final proof, including cold proof (min)<input
+              id="proofMinutes"
+              type="number"
+              min="0"
+              max="10080"
+              step="any" /></label
+          ><label
+            >Overall result (1–5)<select id="rating">
+              <option value="">Not rated</option>
+              <option value="1">1 — poor</option>
+              <option value="2">2 — needs work</option>
+              <option value="3">3 — okay</option>
+              <option value="4">4 — good</option>
+              <option value="5">5 — excellent</option>
+            </select></label
+          ><label
+            >Total baked batch weight (g)<input
+              id="bakedWeightG"
+              type="number"
+              min="0.1"
+              step="any" /></label
+          ><label
+            >Oven spring (1–5)<select id="spring">
+              <option value="">Not rated</option>
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+              <option>5</option>
+            </select></label
+          ><label
+            >Sourness (1–5)<select id="sourness">
+              <option value="">Not rated</option>
+              <option value="1">1 — mild</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+              <option value="5">5 — very sour</option>
+            </select></label
+          >
+        </div>
+        <p class="hint">
+          Bulk starts when starter is mixed in and includes the fold rests; an
+          autolyse without starter is separate. Use minutes for the whole
+          period, e.g. 720 for 12 hours.
+        </p>
+        <label for="observations">Observations</label
+        ><textarea
+          id="observations"
+          rows="4"
+          maxlength="4000"
+          placeholder="Crumb, rise, flavour, shaping, starter condition, flour brand, signs of fermentation…"
+        ></textarea
+        ><label for="nextTime">What to change next time</label
+        ><textarea id="nextTime" rows="2" maxlength="4000"></textarea
+        ><button class="primary" id="saveBake">Save bake result</button
+        ><span class="state" id="bakeState"></span>
+        <p id="status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+  </body>
+</html>

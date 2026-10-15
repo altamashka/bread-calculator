@@ -40,3 +40,23 @@ Ben: F=1,000, water=750, salt=20, starter=200 at 100%. Total flour=1,100, water=
 King Arthur’s hydration article: 500 g added flour, 375 g water and 100 g starter at 100%. Total flour=550, total water=425; hydration=77.2727%.
 
 With 200 g starter at 50%, starter flour=133.3333 g and starter water=66.6667 g, not an equal split.
+
+## Methods and bake records
+
+[King Arthur’s bulk fermentation guide](https://www.kingarthurbaking.com/blog/2019/07/22/bulk-fermentation) discusses folds within bulk fermentation and the importance of dough condition. Its [sourdough baking guide](https://www.kingarthurbaking.com/learn/guides/sourdough/bake) explains the flour-and-water autolyse. These support collecting actual temperatures, fermentation durations and observations rather than treating a fixed timer as a prediction.
+
+Storage is a product design choice: formulas and reusable method definitions live in separate collections; a recipe captures the chosen method version, and a bake captures the formula and method actually used. Editing a library method cannot change the apparent procedure of an earlier bake. Method comparisons group by their full saved steps, not just an unchanged name, exclude missing ratings and expose sample counts and temperature/hydration context. The app does not infer causal effects or recommend fermentation timings from small samples.
+
+Mealie is a one-way, linked destination, not a second method library. The installed 3.10.2 schema supports partial recipe PATCH with native `recipeInstructions` step `title`, `summary` and `text` fields. The app updates only its managed recipe fields and merges its namespaced extras into existing extras. It retains the remote recipe ID and slug; legacy linking requires one exact name-and-ingredient match. This addresses the original export-only workflow’s inability to update a recipe without copies.
+
+## Additional reference: breadcalc spreadsheet
+
+Ben supplied [breadcalc](https://docs.google.com/spreadsheets/d/1xGGlesIknh4VE1UL9jeBnUatF8gWRAlbvTgt-FbFx6c/edit#gid=1837644571). Read all four tabs and the bounded calculation cells on 2026-10-15; the source was not edited or copied into the app.
+
+The Dough Calculator separates total ingredients, ripe starter, levain build and the main-dough additions. Its percentages use total flour, unlike this app's explicitly labelled added-flour input basis. At its displayed 3,600 g batch, 80% hydration and 2% salt, total flour is 3,600/1.82 = 1,978.02 g. Its 396 g levain contains about 198 g flour, or 10% prefermented flour. Compare formulas by total hydration and prefermented flour, not by assuming a displayed starter percentage has the same denominator.
+
+The Discard Calculator models discard and a yeasted preferment separately. This is useful inspiration for a future multi-build formula model; it must account for seed flour/water and preferment yeast exactly once. The current combined-starter model cannot represent those builds independently.
+
+The tracker separates method actions from actual observations: temperatures, bulk rise, ambient/cold proof, oven stages and optional pH. This supports the app's separate method library and immutable bake snapshots. Future optional measurements should stay collapsed so recording a simple result remains quick. Its example pH targets and fixed timings are examples, not defaults or recommendations for Ben's dough.
+
+The Dough temperature tab calculates water temperature as 4 × desired dough temperature − levain − flour − room − friction factor. Its shown inputs give 30°C water. [King Arthur's desired dough temperature guide](https://www.kingarthurbaking.com/blog/2018/05/29/desired-dough-temperature) describes the three-factor calculation without a preferment and four-factor calculation with one, and notes that friction varies with the mixing process. A future helper should describe this as an estimate, take measured inputs and compare the resulting mixed-dough temperature; it is not a heat-capacity model or fermentation prediction.
