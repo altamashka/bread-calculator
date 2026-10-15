@@ -20,7 +20,7 @@ Old BRDCLC query links remain compatible. `starter` and `poolish` are combined w
 
 ## Storage and Mealie
 
-The calculator owns editable formulas, reusable methods and bake records. Mealie is a linked recipe destination. Its ingredients and chosen method steps are updated when you save with the checkbox enabled. Formula and method snapshots are also stored in the linked recipe’s `extras.breadCalculator` metadata. Mealie-only tags, photos, categories and other fields are preserved. Ingredient weights are plain text in Mealie; scale them in this calculator. Edits made directly to Mealie ingredients or instructions are not pulled back here.
+The calculator owns editable formulas, reusable methods and bake records. Mealie is a linked recipe destination. Its ingredients and chosen method steps are updated when you save with the checkbox enabled. Formula and method snapshots are also stored in the linked recipe’s JSON text in `extras.breadCalculator` metadata. Mealie-only tags, photos, categories and other fields are preserved. Ingredient weights are plain text in Mealie; scale them in this calculator. Edits made directly to Mealie ingredients or instructions are not pulled back here.
 
 The backend uses the installed **Mealie v3.10.2** API: first creation uses `POST /api/recipes/create/html-or-json`, then subsequent saves use `PATCH /api/recipes/{slug}`. A stored immutable Mealie ID guards the link. If a linked recipe is renamed in Mealie, its ID is used to resolve the new slug. If it is removed or its identity changes, the app stops instead of creating another copy or overwriting a different recipe.
 

@@ -57,6 +57,8 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     if (req.method === "GET") return send(200, r);
     if (req.method === "PATCH") {
       patches++;
+      if (Object.values(value.extras ?? {}).some((v) => typeof v !== "string"))
+        return send(500, { error: "Mealie extras values must be text" });
       if (failPatch) {
         failPatch = false;
         return send(500, {});
@@ -152,6 +154,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     /30 minutes/,
   );
   assert.equal([...remote.values()][0].extras.keep, "untouched");
+  const metadata = JSON.parse([...remote.values()][0].extras.breadCalculator);
+  assert.equal(metadata.recipeId, saved.id);
+  assert.deepEqual(metadata.formula, saved.recipe);
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
   assert.equal(patches, 1);
