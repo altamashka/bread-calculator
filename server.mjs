@@ -30,7 +30,10 @@ async function body(req) {
     s += chunk;
     if (Buffer.byteLength(s) > 32768) throw Error("Recipe is too large.");
   }
-  return JSON.parse(s);
+  const parsed = JSON.parse(s);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    throw Error("A recipe request object is required.");
+  return parsed;
 }
 export function createServer() {
   return http.createServer(async (req, res) => {
@@ -92,28 +95,30 @@ export function createServer() {
           });
         pending.add(id);
         try {
-        await mkdir(dataDir, { recursive: true });
-        const record = { id, recipe, updatedAt: new Date().toISOString() },
-          tmp = `${dataDir}/${id}.${randomUUID()}.tmp`;
-        try {
-          const previous = JSON.parse(
-            await readFile(`${dataDir}/${id}.json`, "utf8"),
-          );
-          if (previous.mealieExportedAt)
-            record.mealieExportedAt = previous.mealieExportedAt;
-        } catch (e) {
-          if (e.code !== "ENOENT") throw e;
-        }
-        try {
-          await writeFile(tmp, JSON.stringify(record, null, 2), {
-            mode: 0o600,
-          });
-          await rename(tmp, `${dataDir}/${id}.json`);
+          await mkdir(dataDir, { recursive: true });
+          const record = { id, recipe, updatedAt: new Date().toISOString() },
+            tmp = `${dataDir}/${id}.${randomUUID()}.tmp`;
+          try {
+            const previous = JSON.parse(
+              await readFile(`${dataDir}/${id}.json`, "utf8"),
+            );
+            if (previous.mealieExportedAt)
+              record.mealieExportedAt = previous.mealieExportedAt;
+          } catch (e) {
+            if (e.code !== "ENOENT") throw e;
+          }
+          try {
+            await writeFile(tmp, JSON.stringify(record, null, 2), {
+              mode: 0o600,
+            });
+            await rename(tmp, `${dataDir}/${id}.json`);
+          } finally {
+            await unlink(tmp).catch(() => {});
+          }
+          return send(200, record);
         } finally {
-          await unlink(tmp).catch(() => {});
+          pending.delete(id);
         }
-        return send(200, record);
-        } finally { pending.delete(id); }
       }
       if (path === "/api/mealie" && req.method === "POST") {
         if (!process.env.MEALIE_URL || !process.env.MEALIE_TOKEN)
@@ -181,7 +186,7 @@ export function createServer() {
     } catch (error) {
       const client =
         error instanceof SyntaxError ||
-        /^(Enter |Use |A recipe|Unsupported |Flour |Whole wheat|Starter hydration)/.test(
+        /^(Enter |Use |A recipe|Recipe is too large|Unsupported |Flour |Whole wheat|Starter hydration)/.test(
           error.message,
         );
       send(client ? 400 : 500, {

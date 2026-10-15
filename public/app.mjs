@@ -275,7 +275,7 @@ api("/api/config")
   .then((c) => {
     $("mealie").disabled = !c.mealie;
     $("mealieHint").textContent = c.mealie
-      ? "Mealie is connected. Sending creates a recipe snapshot."
+      ? "Mealie export is configured. Sending creates a recipe snapshot."
       : "Mealie is not connected yet. Export JSON for manual import, or configure a server-side API token.";
   })
   .catch(() => {
