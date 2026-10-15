@@ -181,6 +181,8 @@ $("undoStep").addEventListener("click", () => {
 });
 $("newMethod").addEventListener("click", () => {
   if (!guard(dirty)) return;
+  removed = null;
+  $("undoStep").hidden = true;
   method = {
     name: "",
     steps: [{ title: "", instructions: "", restMinutes: 0 }],
@@ -193,11 +195,16 @@ $("newMethod").addEventListener("click", () => {
 });
 $("savedMethod").addEventListener("change", () => {
   const selected = records.find((r) => r.id === $("savedMethod").value);
-  if (!selected) return;
+  if (!selected) {
+    $("savedMethod").value = savedId ?? "";
+    return;
+  }
   if (!guard(dirty)) {
     $("savedMethod").value = savedId ?? "";
     return;
   }
+  removed = null;
+  $("undoStep").hidden = true;
   savedId = selected.id;
   method = validateMethod(selected.method);
   baseline = structuredClone(method);

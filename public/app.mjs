@@ -34,11 +34,13 @@ let recipe = defaults(),
   mealie = false;
 const initialQuery = new URLSearchParams(location.search),
   requestedId = initialQuery.get("recipeId"),
-  formulaLink = [...initialQuery.keys()].some((k) => k !== "recipeId");
+  formulaLink = [...initialQuery.keys()].some(
+    (k) => !["recipeId", "draft"].includes(k),
+  );
 let restoredDraft = null;
 try {
   const value = JSON.parse(sessionStorage.getItem("bread-draft") ?? "null");
-  if (value?.dirty)
+  if (value?.recipe)
     restoredDraft = { ...value, recipe: validate(value.recipe) };
 } catch {}
 let draftBaseline = structuredClone(recipe);
@@ -55,7 +57,10 @@ draftBaseline = structuredClone(recipe);
 function savedState() {
   const record = current();
   dirty = !!savedId
-    ? !same(validateSafe(recipe), validateSafe(record?.recipe))
+    ? !same(validateSafe(recipe), validateSafe(record?.recipe)) ||
+      (mealie &&
+        (record?.mealieEnabled ?? !!record?.mealieExportedAt) !==
+          $("saveMealie").checked)
     : !same(recipe, draftBaseline);
   $("saveState").textContent = !savedId
     ? "Not saved"
@@ -194,7 +199,7 @@ function render(active) {
     $("extraCount").textContent = count ? `(${count} used)` : "";
     const query = savedId
       ? new URLSearchParams({ recipeId: savedId })
-      : new URLSearchParams(toQuery({ ...recipe, method: null, notes: "" }));
+      : new URLSearchParams({ draft: "1" });
     history.replaceState(null, "", `?${query}`);
   } catch (e) {
     valid = false;
@@ -225,6 +230,7 @@ function render(active) {
           recipe,
           savedId,
           dirty,
+          baseline: draftBaseline,
           mealieEnabled: $("saveMealie").checked,
         }),
       );
@@ -240,6 +246,7 @@ for (const key of Object.keys(defaults()))
       status("");
       render(key);
     });
+$("saveMealie").addEventListener("change", () => render());
 async function refresh() {
   records = await api("/api/recipes");
   $("saved").replaceChildren(new Option("Choose a saved recipe…", ""));
@@ -358,7 +365,10 @@ action("duplicate", () => {
 $("saved").addEventListener("change", () => {
   const id = $("saved").value,
     r = records.find((r) => r.id === id);
-  if (!r) return;
+  if (!r) {
+    $("saved").value = savedId ?? "";
+    return;
+  }
   if (!guard(dirty)) {
     $("saved").value = savedId ?? "";
     return;
@@ -470,17 +480,19 @@ Promise.all([refresh(), refreshMethods(), api("/api/config")])
     if (
       !formulaLink &&
       restoredDraft &&
-      (!requestedId || restoredDraft.savedId === requestedId)
+      ((!requestedId && (initialQuery.has("draft") || restoredDraft.dirty)) ||
+        (restoredDraft.savedId === requestedId && restoredDraft.dirty))
     ) {
       recipe = restoredDraft.recipe;
       savedId = records.some((r) => r.id === restoredDraft.savedId)
         ? restoredDraft.savedId
         : null;
-      draftBaseline = null;
+      draftBaseline = restoredDraft.baseline ?? null;
       $("saveMealie").checked = restoredDraft.mealieEnabled ?? mealie;
-      status(
-        "Unsaved draft restored in this tab. Save to keep it on the server.",
-      );
+      if (restoredDraft.dirty)
+        status(
+          "Unsaved draft restored in this tab. Save to keep it on the server.",
+        );
     }
     fill();
     $("saved").value = savedId ?? "";
