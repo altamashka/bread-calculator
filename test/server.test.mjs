@@ -1,0 +1,76 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+process.env.DATA_DIR = await mkdtemp(`${tmpdir()}/bread-test-`);
+const { createServer } = await import("../server.mjs");
+test("HTTP saves persist, validates requests, serves safely and exports to a mock Mealie", async (t) => {
+  const server = createServer();
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let payload, auth;
+  const mock = (await import("node:http")).createServer(async (req, res) => {
+    auth = req.headers.authorization;
+    let text = "";
+    for await (const chunk of req) text += chunk;
+    payload = JSON.parse(text);
+    assert.equal(req.url, "/api/recipes/create/html-or-json");
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end('"test-loaf"');
+  });
+  await new Promise((r) => mock.listen(0, "127.0.0.1", r));
+  t.after(async () => {
+    await Promise.all([
+      new Promise((r) => server.close(r)),
+      new Promise((r) => mock.close(r)),
+    ]);
+    await rm(process.env.DATA_DIR, { recursive: true });
+    delete process.env.MEALIE_URL;
+    delete process.env.MEALIE_TOKEN;
+  });
+  const post = (path, value, headers = {}) =>
+    fetch(base + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(value),
+    });
+  assert.equal((await fetch(base + "/healthz")).status, 200);
+  const page = await fetch(base + "/");
+  assert.equal(page.status, 200);
+  assert.ok(
+    page.headers.get("content-security-policy").includes("script-src 'self'"),
+  );
+  assert.equal(
+    (await post("/api/recipes", { recipe: { flour: 0 } })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await post(
+        "/api/recipes",
+        { recipe: {} },
+        { Origin: "https://evil.example" },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await post("/api/recipes", { id: "../../etc/passwd", recipe: {} })).status,
+    400,
+  );
+  const saved = await (
+    await post("/api/recipes", { recipe: { name: "Test loaf" } })
+  ).json();
+  assert.ok(saved.id);
+  const list = await (await fetch(base + "/api/recipes")).json();
+  assert.equal(list[0].recipe.name, "Test loaf");
+  assert.equal((await post("/api/mealie", { id: saved.id })).status, 503);
+  process.env.MEALIE_URL = `http://127.0.0.1:${mock.address().port}`;
+  process.env.MEALIE_TOKEN = "test-token";
+  assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
+  assert.equal(auth, "Bearer test-token");
+  assert.equal(JSON.parse(payload.data).name, "Test loaf");
+  assert.equal((await post("/api/mealie", { id: saved.id })).status, 409);
+  await post("/api/recipes", { id: saved.id, recipe: saved.recipe });
+  assert.equal((await post("/api/mealie", { id: saved.id })).status, 409);
+});
