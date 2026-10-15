@@ -1,18 +1,241 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f1e8"><title>Bread bench · Dough calculator</title><link rel="stylesheet" href="/style.css"><script type="module" src="/app.mjs"></script></head>
-<body><main>
-<header><a class="brand" href="/">◒ &nbsp; BREAD BENCH</a></header>
-<section class="intro"><h1>Bread calculator</h1></section>
-<div class="workspace"><section class="panel recipe"><div class="section-title"><h2>Your dough</h2><button id="reset" class="subtle">Start fresh</button></div>
-<label for="name">Recipe name</label><input id="name" maxlength="120" value="Everyday sourdough">
-<div class="flour"><label for="flour">Flour added to the bowl <span>g</span></label><div class="stepper"><button id="less" aria-label="Reduce flour by 250 grams">−</button><input id="flour" type="number" min="0.1" max="100000" step="any" inputmode="decimal"><button id="more" aria-label="Increase flour by 250 grams">+</button></div><p class="hint">All ingredient percentages are relative to this flour.</p></div>
-<div class="table-head"><span>Ingredient</span><span>Baker’s %</span><span>Grams</span></div><div id="ingredients"></div>
-<details><summary>Flour blend &amp; starter</summary><p class="hint">Blend applies to added flour. Starter flour is counted separately; its flour type is unspecified.</p><div class="two"><label>Whole wheat %<input id="wholeWheat" type="number" min="0" max="100" step="any"></label><label>Rye %<input id="rye" type="number" min="0" max="100" step="any"></label></div><p id="blend" class="hint"></p><label>Starter hydration %<input id="starterHydration" type="number" min="0" max="500" step="any"></label><p class="hint">100% means equal weights of flour and water. Use 50% for a stiff starter with twice as much flour as water.</p></details>
-<details><summary>More ingredients</summary><p class="hint">Set an ingredient to zero to leave it out. Yeast is instant yeast; no automatic sourdough conversion is assumed.</p><div id="extras"></div></details>
-<details><summary>Method &amp; baking notes</summary><label for="notes">Your method, timings and observations</label><textarea id="notes" rows="6" maxlength="10000" placeholder="What worked? What would you change next time?"></textarea></details>
-</section>
-<aside><section class="panel result"><p class="eyebrow">DOUGH TOTALS</p><div class="hero-number"><span id="hydration">77.3</span><span>%</span></div><h2>Total water hydration</h2><p class="hint">Includes the flour and water in your starter.</p><dl><div><dt>Dough weight</dt><dd id="dough"></dd></div><div><dt>Flour including starter</dt><dd id="totalFlour"></dd></div><div><dt>Water including starter</dt><dd id="totalWater"></dd></div><div><dt>Prefermented flour</dt><dd id="prefermented"></dd></div><div><dt>Salt / total flour</dt><dd id="saltTotal"></dd></div><div id="liquidRow" hidden><dt>Hydration counting milk</dt><dd id="liquidHydration"></dd></div></dl><p id="starterSplit" class="hint"></p><div class="portion"><label for="portions">Divide into</label><input id="portions" type="number" min="1" max="1000" step="1"><span>pieces</span><strong id="portion"></strong></div><p class="hint">Dough weight before baking; baked weight will be lower.</p><hr><label for="target">Scale to total dough weight (g)</label><div class="inline"><input id="target" type="number" min="1" step="any" placeholder="e.g. 1800"><button id="scale">Scale batch</button></div><label for="targetHydration">Set total water hydration (%)</label><div class="inline"><input id="targetHydration" type="number" min="0" step="any" placeholder="e.g. 75"><button id="setHydration">Set water</button></div></section>
-<section class="panel keep"><h2>Keep this recipe</h2><div class="actions"><button class="primary" id="save">Save recipe</button><button id="copy">Save as copy</button><button id="share">Copy recipe link</button><button id="export">Export JSON</button><button id="mealie" disabled>Send to Mealie</button></div><p id="mealieHint" class="hint">Checking Mealie connection…</p><label for="saved">Saved on your server</label><select id="saved"><option value="">Choose a recipe…</option></select><label class="import">Restore a recipe JSON<input id="import" type="file" accept="application/json,.json"></label><p class="hint">JSON contains your editable formula and a standard recipe for Mealie import.</p></section></aside></div>
-<p id="status" role="status" aria-live="polite"></p>
-<section class="guide"><h2>Calculation notes</h2><div><p><strong>Hydration describes a ratio, not a promise.</strong> Whole grain flours usually absorb more water. Flour strength, milling, fermentation and handling also change how dough feels. Keep notes rather than chasing a single ideal percentage.</p><p><strong>Two percentages, two jobs.</strong> The water input is a percentage of added flour. The large hydration figure counts all flour and water, including starter. Milk appears in a separate liquid hydration figure. Eggs, butter, oil and honey affect dough but are excluded from both figures.</p><p><strong>Use a scale.</strong> Grams avoid the uncertainty of flour packed into cups. We retain full precision in the calculation and round the display to 0.1 g. Timings and temperatures belong in your method; this calculator does not predict fermentation.</p></div><p class="hint">Calculation references: <a href="https://www.kingarthurbaking.com/blog/2023/01/11/bread-hydration">King Arthur: bread hydration</a> · <a href="https://www.kingarthurbaking.com/blog/2022/04/28/what-is-bakers-math-and-how-can-i-use-it-in-my-everyday-bread-baking">Baker’s math</a>. Inspired by <a href="http://brdclc.com/">BRDCLC</a>; independently written.</p></section><footer>BREAD BENCH <button id="print" class="subtle">Print recipe</button></footer>
-</main></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f5f1e8" />
+    <title>Bread calculator</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.mjs"></script>
+  </head>
+  <body>
+    <main>
+      <header><a class="brand" href="/">BREAD CALCULATOR</a></header>
+      <section class="intro"><h1>Bread calculator</h1></section>
+      <div class="workspace">
+        <section class="panel recipe">
+          <div class="section-title">
+            <h2>Recipe</h2>
+            <button id="reset" class="subtle">Start fresh</button>
+          </div>
+          <label for="name">Recipe name</label
+          ><input id="name" maxlength="120" value="Everyday sourdough" />
+          <div class="flour">
+            <label for="flour">Flour added to the bowl <span>g</span></label>
+            <div class="stepper">
+              <button id="less" aria-label="Reduce flour by 250 grams">−</button
+              ><input
+                id="flour"
+                type="number"
+                min="0.1"
+                max="100000"
+                step="any"
+                inputmode="decimal"
+              /><button id="more" aria-label="Increase flour by 250 grams">
+                +
+              </button>
+            </div>
+            <p class="hint">
+              All ingredient percentages are relative to this flour.
+            </p>
+          </div>
+          <div class="table-head">
+            <span>Ingredient</span><span>Baker’s %</span><span>Grams</span>
+          </div>
+          <div id="ingredients"></div>
+          <details>
+            <summary>Flour blend &amp; starter</summary>
+            <p class="hint">
+              Blend applies to added flour. Starter flour is counted separately;
+              its flour type is unspecified.
+            </p>
+            <div class="two">
+              <label
+                >Whole wheat %<input
+                  id="wholeWheat"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any" /></label
+              ><label
+                >Rye %<input
+                  id="rye"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+              /></label>
+            </div>
+            <p id="blend" class="hint"></p>
+            <label
+              >Starter hydration %<input
+                id="starterHydration"
+                type="number"
+                min="0"
+                max="500"
+                step="any"
+            /></label>
+            <p class="hint">
+              100% means equal weights of flour and water. Use 50% for a stiff
+              starter with twice as much flour as water.
+            </p>
+          </details>
+          <details>
+            <summary>More ingredients</summary>
+            <p class="hint">
+              Set an ingredient to zero to leave it out. Yeast is instant yeast;
+              no automatic sourdough conversion is assumed.
+            </p>
+            <div id="extras"></div>
+          </details>
+          <details>
+            <summary>Method &amp; baking notes</summary>
+            <label for="notes">Your method, timings and observations</label
+            ><textarea
+              id="notes"
+              rows="6"
+              maxlength="10000"
+              placeholder="What worked? What would you change next time?"
+            ></textarea>
+          </details>
+        </section>
+        <aside>
+          <section class="panel result">
+            <p class="eyebrow">DOUGH TOTALS</p>
+            <div class="hero-number">
+              <span id="hydration">77.3</span><span>%</span>
+            </div>
+            <h2>Total water hydration</h2>
+            <p class="hint">Includes the flour and water in your starter.</p>
+            <dl>
+              <div>
+                <dt>Dough weight</dt>
+                <dd id="dough"></dd>
+              </div>
+              <div>
+                <dt>Flour including starter</dt>
+                <dd id="totalFlour"></dd>
+              </div>
+              <div>
+                <dt>Water including starter</dt>
+                <dd id="totalWater"></dd>
+              </div>
+              <div>
+                <dt>Prefermented flour</dt>
+                <dd id="prefermented"></dd>
+              </div>
+              <div>
+                <dt>Salt / total flour</dt>
+                <dd id="saltTotal"></dd>
+              </div>
+              <div id="liquidRow" hidden>
+                <dt>Hydration counting milk</dt>
+                <dd id="liquidHydration"></dd>
+              </div>
+            </dl>
+            <p id="starterSplit" class="hint"></p>
+            <div class="portion">
+              <label for="portions">Divide into</label
+              ><input
+                id="portions"
+                type="number"
+                min="1"
+                max="1000"
+                step="1"
+              /><span>pieces</span><strong id="portion"></strong>
+            </div>
+            <p class="hint">
+              Dough weight before baking; baked weight will be lower.
+            </p>
+            <hr />
+            <label for="target">Scale to total dough weight (g)</label>
+            <div class="inline">
+              <input
+                id="target"
+                type="number"
+                min="1"
+                step="any"
+                placeholder="e.g. 1800"
+              /><button id="scale">Scale batch</button>
+            </div>
+            <label for="targetHydration">Set total water hydration (%)</label>
+            <div class="inline">
+              <input
+                id="targetHydration"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="e.g. 75"
+              /><button id="setHydration">Set water</button>
+            </div>
+          </section>
+          <section class="panel keep">
+            <h2>Save and export</h2>
+            <div class="actions">
+              <button class="primary" id="save">Save recipe</button
+              ><button id="copy">Save as copy</button
+              ><button id="share">Copy recipe link</button
+              ><button id="export">Export JSON</button
+              ><button id="mealie" disabled>Send to Mealie</button>
+            </div>
+            <p id="mealieHint" class="hint">Checking Mealie connection…</p>
+            <label for="saved">Saved on your server</label
+            ><select id="saved">
+              <option value="">Choose a recipe…</option></select
+            ><label class="import"
+              >Restore a recipe JSON<input
+                id="import"
+                type="file"
+                accept="application/json,.json"
+            /></label>
+            <p class="hint">
+              JSON contains your editable formula and a standard recipe for
+              Mealie import.
+            </p>
+          </section>
+        </aside>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+      <section class="guide">
+        <h2>Calculation notes</h2>
+        <div>
+          <p>
+            <strong>Hydration describes a ratio, not a promise.</strong> Whole
+            grain flours usually absorb more water. Flour strength, milling,
+            fermentation and handling also change how dough feels. Keep notes
+            rather than chasing a single ideal percentage.
+          </p>
+          <p>
+            <strong>Two percentages, two jobs.</strong> The water input is a
+            percentage of added flour. The large hydration figure counts all
+            flour and water, including starter. Milk appears in a separate
+            liquid hydration figure. Eggs, butter, oil and honey affect dough
+            but are excluded from both figures.
+          </p>
+          <p>
+            <strong>Use a scale.</strong> Grams avoid the uncertainty of flour
+            packed into cups. We retain full precision in the calculation and
+            round the display to 0.1 g. Timings and temperatures belong in your
+            method; this calculator does not predict fermentation.
+          </p>
+        </div>
+        <p class="hint">
+          Calculation references:
+          <a
+            href="https://www.kingarthurbaking.com/blog/2023/01/11/bread-hydration"
+            >King Arthur: bread hydration</a
+          >
+          ·
+          <a
+            href="https://www.kingarthurbaking.com/blog/2022/04/28/what-is-bakers-math-and-how-can-i-use-it-in-my-everyday-bread-baking"
+            >Baker’s math</a
+          >. Inspired by <a href="http://brdclc.com/">BRDCLC</a>; independently
+          written.
+        </p>
+      </section>
+      <footer>
+        BREAD CALCULATOR <button id="print" class="subtle">Print recipe</button>
+      </footer>
+    </main>
+  </body>
+</html>
