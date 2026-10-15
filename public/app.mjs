@@ -78,6 +78,9 @@ function savedState() {
   $("saved").disabled = !ready || busy;
   $("reset").disabled = busy;
   $("duplicate").disabled = busy;
+  $("logBake").setAttribute("aria-disabled", String(!savedId || dirty));
+  $("bakeHint").textContent =
+    !savedId || dirty ? "Save this recipe before recording a bake." : "";
   $("logBake").href = savedId
     ? `/bakes?recipeId=${encodeURIComponent(savedId)}`
     : "/bakes";
@@ -461,7 +464,28 @@ $("import").addEventListener("change", async () => {
     $("import").value = "";
   }
 });
-guardUnload(() => ready && dirty);
+let internalNavigation = false;
+$("logBake").addEventListener("click", (event) => {
+  if (!savedId || dirty) {
+    event.preventDefault();
+    status("Save this recipe before recording a bake.", true);
+  }
+});
+document.addEventListener("click", (event) => {
+  const link = event.target.closest("a");
+  if (
+    link &&
+    !event.defaultPrevented &&
+    link.target !== "_blank" &&
+    new URL(link.href).origin === location.origin &&
+    ready &&
+    valid
+  ) {
+    render();
+    internalNavigation = true;
+  }
+});
+guardUnload(() => ready && dirty && !internalNavigation);
 fill();
 Promise.all([refresh(), refreshMethods(), api("/api/config")])
   .then(([, , c]) => {

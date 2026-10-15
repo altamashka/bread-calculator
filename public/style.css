@@ -822,3 +822,8 @@ td {
     font-size: 48px;
   }
 }
+a[aria-disabled="true"] {
+  color: #77816e;
+  text-decoration: none;
+  cursor: default;
+}
