@@ -2,6 +2,8 @@
 
 A private, self-hosted bread dough calculator for Ben. Independently written, inspired by BRDCLC. No analytics, third-party scripts, package dependencies or internet connection needed for calculations. Mealie integration is optional.
 
+Live on Tailscale: [Bread calculator](https://bread.tail10db36.ts.net).
+
 ## Use it
 
 Change flour weight to scale every ingredient, or edit any ingredient in grams or baker’s percentages. The percentage basis is **flour added to the bowl**, matching BRDCLC. Set total dough weight to scale a batch, or set total water hydration to solve for the added water. Adjust starter hydration, whole wheat/rye blend and portions. Save named recipes with method notes on the server; export JSON for backup or manual Mealie import. Print from the browser.

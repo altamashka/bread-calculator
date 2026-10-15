@@ -1,6 +1,6 @@
 # altamacmini deployment
 
-The application lives in its own private GitHub repository. The server repository owns only the deployment wrapper and service documentation. The first application and deployment PRs are merged. The container is running on 127.0.0.1:8078. Health and original-recipe persistence across a container restart were verified on 2026-10-15. The dedicated private HTTPS name still awaits Tailscale console registration and host approval; the console requires Ben’s sign-in. Mealie export is enabled and was verified on 2026-10-15: the original recipe is saved with its ingredient weights, two servings and hydration. Ben explicitly authorized reuse of the existing server-side Mealie credential.
+The application lives in its own private GitHub repository. The server repository owns only the deployment wrapper and service documentation. The first application and deployment PRs are merged. The container is running on 127.0.0.1:8078. Health and original-recipe persistence across a container restart were verified on 2026-10-15. The private HTTPS endpoint `https://bread.tail10db36.ts.net` is approved and verified from the Mac, including its certificate and health endpoint. Mealie export is enabled and was verified on 2026-10-15: the original recipe is saved with its ingredient weights, two servings and hydration. Ben explicitly authorized reuse of the existing server-side Mealie credential.
 
 ## First rollout
 
@@ -38,4 +38,4 @@ The server has no HTTPS Git credential for the new private repository. The initi
 
 `~/docker/bread-calculator/.env` stores the deployed `BREAD_REVISION` with mode 600. Preserve this value and any later Mealie settings across updates. The original named recipe is “Everyday sourdough”.
 
-Pending acceptance is tracked in [issue #3](https://github.com/altamashka/bread-calculator/issues/3); scheduled backup and restore verification is [issue #2](https://github.com/altamashka/bread-calculator/issues/2). The alternate node-hostname Serve change was rejected by automatic approval review and was not applied. The approved dedicated `svc:bread` proxy is configured and awaits its console registration/approval.
+The initial HTTPS and Mealie acceptance checks are tracked in [issue #3](https://github.com/altamashka/bread-calculator/issues/3); scheduled backup and restore verification remains in [issue #2](https://github.com/altamashka/bread-calculator/issues/2). Existing Tailscale service mappings are retained.
