@@ -34,7 +34,7 @@ The image runs as an unprivileged user, with a read-only root filesystem, droppe
 
 ## Mealie
 
-Verified the running server’s Mealie **v3.10.2** OpenAPI schema on 2026-10-15. Uses `POST /api/recipes/create/html-or-json` with `{ "data": "<schema.org Recipe JSON string>" }`. An actual token-authenticated save still requires configuring a token and live verification.
+Verified the running server’s Mealie **v3.10.2** OpenAPI schema on 2026-10-15. Uses `POST /api/recipes/create/html-or-json` with `{ "data": "<schema.org Recipe JSON string>" }`. Live export was verified on 2026-10-15 using the existing server-side Mealie credential with Ben’s explicit approval. “Everyday sourdough” is saved in Mealie with the correct ingredient weight text, two servings and 77.27% hydration in its description. Mealie imports the weighed ingredients as text; use this calculator to rescale the dough.
 
 Create a token in Mealie’s user profile → API tokens. On the server only, copy `.env.example` to `.env`, put the token there and restrict its permissions. Never paste it into chat, browser code or Git. The backend alone sends it to the configured Mealie origin. HTTPS is verified; redirects are refused. Configure `MEALIE_URL` with the base origin, without a path prefix. Do not expose the app to the public internet: anyone able to reach it can save recipes and use its configured Mealie connection.
 

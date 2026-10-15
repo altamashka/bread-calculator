@@ -1,6 +1,6 @@
 # altamacmini deployment
 
-The application lives in its own private GitHub repository. The server repository owns only the deployment wrapper and service documentation. The first application and deployment PRs are merged. The container is running on 127.0.0.1:8078. Health and original-recipe persistence across a container restart were verified on 2026-10-15. The dedicated private HTTPS name still awaits Tailscale console registration and host approval; the console requires Ben’s sign-in. Mealie export remains disabled until a user-created token is configured and verified.
+The application lives in its own private GitHub repository. The server repository owns only the deployment wrapper and service documentation. The first application and deployment PRs are merged. The container is running on 127.0.0.1:8078. Health and original-recipe persistence across a container restart were verified on 2026-10-15. The dedicated private HTTPS name still awaits Tailscale console registration and host approval; the console requires Ben’s sign-in. Mealie export is enabled and was verified on 2026-10-15: the original recipe is saved with its ingredient weights, two servings and hydration. Ben explicitly authorized reuse of the existing server-side Mealie credential.
 
 ## First rollout
 
@@ -21,6 +21,8 @@ ssh -N -L 8078:127.0.0.1:8078 altamacmini
 Open http://127.0.0.1:8078 on the Mac. This does not by itself provide a day-to-day phone HTTPS endpoint.
 
 ## Mealie
+
+The live backend uses `http://mealie:9000` on the shared Docker `web` network. Its protected `.env` holds the authorized existing API credential; the browser receives only a configured/unconfigured flag. The original recipe is available in Mealie as `everyday-sourdough`. The import preserves gram weights as ingredient text and parses the yield as two servings. Scale in the bread calculator and save a copy when exporting a changed version.
 
 Create a user API token and store it in the server-only environment file. Token creation is an access change requiring Ben’s approval. Do not retrieve tokens from the Mealie database or commit any token. Configure the URL and token as described in README.md, recreate this container only, and send a named test recipe. Verify ingredients, actual hydration, yield and notes in Mealie. Keep any created recipe unless Ben approves its deletion.
 
