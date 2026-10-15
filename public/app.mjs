@@ -480,13 +480,18 @@ Promise.all([refresh(), refreshMethods(), api("/api/config")])
     if (
       !formulaLink &&
       restoredDraft &&
-      ((!requestedId && (initialQuery.has("draft") || restoredDraft.dirty)) ||
+      ((!requestedId &&
+        (initialQuery.has("draft") ||
+          !initialQuery.size ||
+          restoredDraft.dirty)) ||
         (restoredDraft.savedId === requestedId && restoredDraft.dirty))
     ) {
-      recipe = restoredDraft.recipe;
-      savedId = records.some((r) => r.id === restoredDraft.savedId)
-        ? restoredDraft.savedId
-        : null;
+      const saved = records.find((r) => r.id === restoredDraft.savedId);
+      savedId = saved?.id ?? null;
+      recipe =
+        saved && !restoredDraft.dirty
+          ? validate(saved.recipe)
+          : restoredDraft.recipe;
       draftBaseline = restoredDraft.baseline ?? null;
       $("saveMealie").checked = restoredDraft.mealieEnabled ?? mealie;
       if (restoredDraft.dirty)
