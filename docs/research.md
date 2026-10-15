@@ -40,3 +40,11 @@ Ben: F=1,000, water=750, salt=20, starter=200 at 100%. Total flour=1,100, water=
 King Arthur’s hydration article: 500 g added flour, 375 g water and 100 g starter at 100%. Total flour=550, total water=425; hydration=77.2727%.
 
 With 200 g starter at 50%, starter flour=133.3333 g and starter water=66.6667 g, not an equal split.
+
+## Methods and bake records
+
+[King Arthur’s bulk fermentation guide](https://www.kingarthurbaking.com/blog/2019/07/22/bulk-fermentation) discusses folds within bulk fermentation and the importance of dough condition. Its [sourdough baking guide](https://www.kingarthurbaking.com/learn/guides/sourdough/bake) explains the flour-and-water autolyse. These support collecting actual temperatures, fermentation durations and observations rather than treating a fixed timer as a prediction.
+
+Storage is a product design choice: formulas and reusable method definitions live in separate collections; a recipe captures the chosen method version, and a bake captures the formula and method actually used. Editing a library method cannot change the apparent procedure of an earlier bake. Method comparisons group by their full saved steps, not just an unchanged name, exclude missing ratings and expose sample counts and temperature/hydration context. The app does not infer causal effects or recommend fermentation timings from small samples.
+
+Mealie is a one-way, linked destination, not a second method library. The installed 3.10.2 schema supports partial recipe PATCH with native `recipeInstructions` step `title`, `summary` and `text` fields. The app updates only its managed recipe fields and merges its namespaced extras into existing extras. It retains the remote recipe ID and slug; legacy linking requires one exact name-and-ingredient match. This addresses the original export-only workflow’s inability to update a recipe without copies.

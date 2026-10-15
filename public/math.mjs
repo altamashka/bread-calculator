@@ -1,3 +1,4 @@
+import { validateSnapshot } from "./methods-model.mjs";
 export const defaults = () => ({
   version: 1,
   name: "Everyday sourdough",
@@ -18,6 +19,7 @@ export const defaults = () => ({
   rye: 0,
   portions: 2,
   notes: "",
+  method: null,
 });
 export const ingredients = {
   water: "Water",
@@ -46,7 +48,9 @@ export function validate(input) {
       r[key] < 0 ||
       r[key] > 100000
     )
-      throw Error(`Enter a valid non-negative number for ${key}.`);
+      throw Error(
+        `Enter a valid non-negative number for ${ingredients[key] ?? { starterHydration: "starter hydration", wholeWheat: "whole wheat", portions: "pieces" }[key] ?? key}.`,
+      );
   }
   if (r.version !== 1) throw Error("Unsupported recipe version.");
   if (
@@ -73,6 +77,7 @@ export function validate(input) {
     throw Error(
       "Use a recipe name up to 120 characters and notes up to 10,000 characters.",
     );
+  r.method = validateSnapshot(r.method);
   return r;
 }
 export function calculate(input) {
@@ -117,7 +122,9 @@ export function fromQuery(query) {
           ? p.get(key).trim()
             ? Number(p.get(key))
             : NaN
-          : p.get(key);
+          : key === "method"
+            ? JSON.parse(p.get(key))
+            : p.get(key);
   // BRDCLC names its three identical 100%-hydration preferments separately.
   const aliases = ["starter", "poolish"];
   if (!p.has("leaven") && aliases.some((k) => p.has(k))) r.leaven = 0;
@@ -127,7 +134,11 @@ export function fromQuery(query) {
   return validate(r);
 }
 export function toQuery(r) {
-  return new URLSearchParams(Object.entries(validate(r))).toString();
+  return new URLSearchParams(
+    Object.entries(validate(r))
+      .filter(([k, v]) => k !== "method" || v !== null)
+      .map(([k, v]) => [k, k === "method" ? JSON.stringify(v) : v]),
+  ).toString();
 }
 const g = (n) => `${Number(n.toFixed(1))} g`;
 export function schemaRecipe(input) {
@@ -145,7 +156,7 @@ export function schemaRecipe(input) {
     "@type": "Recipe",
     name: r.name,
     recipeYield: `${r.portions} dough portions of ${g(c.portion)} before baking`,
-    description: `${c.hydration.toFixed(2)}% water hydration including starter; ${g(c.dough)} dough. Percentages use added flour. Starter hydration ${r.starterHydration}%. Milk counted separately: ${c.liquidHydration.toFixed(2)}% liquid hydration.`,
+    description: `${c.hydration.toFixed(2)}% water hydration including starter; ${g(c.dough)} dough; ${r.portions} pieces of ${g(c.portion)} before baking. Percentages use added flour. Starter hydration ${r.starterHydration}%. Milk counted separately: ${c.liquidHydration.toFixed(2)}% liquid hydration.${r.method ? ` Method: ${r.method.name}.${r.notes.trim() ? ` Recipe notes: ${r.notes}` : ""}` : ""}`,
     recipeIngredient: [
       ...flours,
       ...Object.entries(c.grams)
@@ -155,12 +166,26 @@ export function schemaRecipe(input) {
             `${g(v)} ${ingredients[k]}${k === "leaven" ? ` (${r.starterHydration}% hydration)` : ""}`,
         ),
     ],
-    recipeInstructions: r.notes.trim()
-      ? r.notes
-          .split("\n")
-          .filter((s) => s.trim())
-          .map((text) => ({ "@type": "HowToStep", text }))
-      : [],
+    recipeInstructions: r.method
+      ? r.method.steps.map((s) => ({
+          "@type": "HowToStep",
+          name: s.title,
+          text:
+            [
+              s.instructions,
+              s.restMinutes
+                ? `Rest for ${s.restMinutes} minutes after this step.`
+                : "",
+            ]
+              .filter(Boolean)
+              .join("\n") || s.title,
+        }))
+      : r.notes.trim()
+        ? r.notes
+            .split("\n")
+            .filter((s) => s.trim())
+            .map((text) => ({ "@type": "HowToStep", text }))
+        : [],
     keywords: "bread, baker percentage, sourdough",
   };
 }
