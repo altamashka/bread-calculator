@@ -1,0 +1,29 @@
+name: Check calculator
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
+      - run: docker compose config --quiet
+      - run: docker build -t bread-calculator:test .
+      - name: Check image health and page
+        run: |
+          docker run -d --name bread-check -p 127.0.0.1:8078:8080 --read-only --tmpfs /tmp --cap-drop ALL bread-calculator:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8078/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8078/ | grep -q 'Bread bench'
+          docker exec bread-check node -e "fetch('http://127.0.0.1:8080/api/recipes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recipe:{name:'CI dough'}})}).then(r=>{if(!r.ok)process.exit(1)})"
+          for attempt in $(seq 1 30); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' bread-check)" = healthy ]; then exit 0; fi
+            sleep 1
+          done
+          exit 1
