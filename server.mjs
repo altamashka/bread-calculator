@@ -9,7 +9,11 @@ import {
 } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { validate, schemaRecipe } from "./public/math.mjs";
+import { validate } from "./public/math.mjs";
+import { validateMethod, InputError } from "./public/methods-model.mjs";
+import { validateBake } from "./public/bakes-model.mjs";
+
+import { syncMealie } from "./mealie.mjs";
 
 const dataDir = process.env.DATA_DIR || "./data";
 const staticDir = fileURLToPath(new URL("./public/", import.meta.url));
@@ -18,6 +22,13 @@ const files = {
   "/app.mjs": ["app.mjs", "text/javascript"],
   "/math.mjs": ["math.mjs", "text/javascript"],
   "/style.css": ["style.css", "text/css"],
+  "/methods": ["methods.html", "text/html; charset=utf-8"],
+  "/bakes": ["bakes.html", "text/html; charset=utf-8"],
+  "/methods.mjs": ["methods.mjs", "text/javascript"],
+  "/methods-model.mjs": ["methods-model.mjs", "text/javascript"],
+  "/bakes.mjs": ["bakes.mjs", "text/javascript"],
+  "/bakes-model.mjs": ["bakes-model.mjs", "text/javascript"],
+  "/ui.mjs": ["ui.mjs", "text/javascript"],
 };
 const idPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -25,15 +36,39 @@ const pending = new Set();
 async function body(req) {
   if (!req.headers["content-type"]?.startsWith("application/json"))
     throw Error("Use application/json.");
-  let s = "";
+  const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
-    s += chunk;
-    if (Buffer.byteLength(s) > 32768) throw Error("Recipe is too large.");
+    chunks.push(chunk);
+    size += chunk.length;
+    if (size > 524288)
+      throw new InputError("The saved item is too large (maximum 512 KB).");
   }
-  const parsed = JSON.parse(s);
+  const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
     throw Error("A recipe request object is required.");
   return parsed;
+}
+async function listRecords(directory) {
+  await mkdir(directory, { recursive: true });
+  const names = (await readdir(directory)).filter(
+    (n) => n.endsWith(".json") && idPattern.test(n.slice(0, -5)),
+  );
+  return Promise.all(
+    names.map(async (n) =>
+      JSON.parse(await readFile(`${directory}/${n}`, "utf8")),
+    ),
+  );
+}
+async function atomicRecord(directory, record) {
+  await mkdir(directory, { recursive: true });
+  const tmp = `${directory}/${record.id}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify(record, null, 2), { mode: 0o600 });
+    await rename(tmp, `${directory}/${record.id}.json`);
+  } finally {
+    await unlink(tmp).catch(() => {});
+  }
 }
 export function createServer() {
   return http.createServer(async (req, res) => {
@@ -67,6 +102,53 @@ export function createServer() {
         return send(200, {
           mealie: !!(process.env.MEALIE_URL && process.env.MEALIE_TOKEN),
         });
+      const collections = {
+        "/api/methods": {
+          field: "method",
+          check: validateMethod,
+          directory: `${dataDir}/methods`,
+        },
+        "/api/bakes": {
+          field: "bake",
+          check: validateBake,
+          directory: `${dataDir}/bakes`,
+        },
+      };
+      if (path === "/api/archive" && req.method === "GET")
+        return send(200, {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          recipes: await listRecords(dataDir),
+          methods: await listRecords(`${dataDir}/methods`),
+          bakes: await listRecords(`${dataDir}/bakes`),
+        });
+      if (collections[path]) {
+        const c = collections[path];
+        if (req.method === "GET")
+          return send(200, await listRecords(c.directory));
+        if (req.method === "POST") {
+          const input = await body(req),
+            value = c.check(input[c.field]),
+            id = input.id ?? randomUUID();
+          if (!idPattern.test(id))
+            return send(400, { error: "Invalid saved item ID." });
+          const lock = `${c.field}:${id}`;
+          if (pending.has(lock))
+            return send(409, { error: "This item is already being saved." });
+          pending.add(lock);
+          try {
+            const record = {
+              id,
+              [c.field]: value,
+              updatedAt: new Date().toISOString(),
+            };
+            await atomicRecord(c.directory, record);
+            return send(200, record);
+          } finally {
+            pending.delete(lock);
+          }
+        }
+      }
       if (path === "/api/recipes" && req.method === "GET") {
         await mkdir(dataDir, { recursive: true });
         const names = (await readdir(dataDir)).filter(
@@ -102,10 +184,26 @@ export function createServer() {
             const previous = JSON.parse(
               await readFile(`${dataDir}/${id}.json`, "utf8"),
             );
-            if (previous.mealieExportedAt)
-              record.mealieExportedAt = previous.mealieExportedAt;
+            for (const key of [
+              "mealieExportedAt",
+              "mealieSlug",
+              "mealieRecipeId",
+              "mealieHash",
+              "mealiePendingCreate",
+              "mealieLegacyRecipe",
+              "mealieEnabled",
+            ])
+              if (key in previous) record[key] = previous[key];
+            if (previous.mealieExportedAt && !previous.mealieSlug)
+              record.mealieLegacyRecipe =
+                previous.mealieLegacyRecipe ?? previous.recipe;
           } catch (e) {
             if (e.code !== "ENOENT") throw e;
+          }
+          if (input.mealieEnabled !== undefined) {
+            if (typeof input.mealieEnabled !== "boolean")
+              throw new InputError("Choose whether to save in Mealie.");
+            record.mealieEnabled = input.mealieEnabled;
           }
           try {
             await writeFile(tmp, JSON.stringify(record, null, 2), {
@@ -138,38 +236,10 @@ export function createServer() {
           const record = JSON.parse(
             await readFile(`${dataDir}/${input.id}.json`, "utf8"),
           );
-          if (record.mealieExportedAt)
-            return send(409, {
-              error:
-                "This saved recipe has already been exported to Mealie. Save a copy to export another version.",
-            });
-          const url = new URL(
-            "/api/recipes/create/html-or-json",
-            process.env.MEALIE_URL,
+          return send(
+            200,
+            await syncMealie(record, (r) => atomicRecord(dataDir, r)),
           );
-          const upstream = await fetch(url, {
-            method: "POST",
-            redirect: "error",
-            signal: AbortSignal.timeout(20000),
-            headers: {
-              Authorization: `Bearer ${process.env.MEALIE_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              data: JSON.stringify(schemaRecipe(record.recipe)),
-            }),
-          });
-          if (!upstream.ok)
-            return send(502, {
-              error: `Mealie returned HTTP ${upstream.status}. Check the token and Mealie logs.`,
-            });
-          record.mealieExportedAt = new Date().toISOString();
-          const tmp = `${dataDir}/${input.id}.${randomUUID()}.tmp`;
-          await writeFile(tmp, JSON.stringify(record, null, 2), {
-            mode: 0o600,
-          });
-          await rename(tmp, `${dataDir}/${input.id}.json`);
-          return send(200, { ok: true });
         } finally {
           pending.delete(input.id);
         }
@@ -186,6 +256,7 @@ export function createServer() {
     } catch (error) {
       const client =
         error instanceof SyntaxError ||
+        error instanceof InputError ||
         /^(Enter |Use |A recipe|Recipe is too large|Unsupported |Flour |Whole wheat|Starter hydration)/.test(
           error.message,
         );
