@@ -239,6 +239,12 @@ for (const k of [...numbers, "observations", "nextTime", "bakeDate"])
   });
 $("bakeRecipe").addEventListener("change", () => {
   const r = recipes.find((r) => r.id === $("bakeRecipe").value);
+  if (!$("bakeRecipe").value) {
+    selectedRecipe = null;
+    selectedMethod = null;
+    methodOptions();
+    update();
+  }
   if (r) {
     selectedRecipe = validate(r.recipe);
     selectedMethod = selectedRecipe.method;
