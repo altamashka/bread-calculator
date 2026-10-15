@@ -165,7 +165,11 @@ export async function syncMealie(record, persist) {
     })),
     extras: {
       ...(remote.extras ?? {}),
-      breadCalculator: { recipeId: record.id, formula: record.recipe },
+      // Mealie 3.10 stores extras values in text columns despite an open API schema.
+      breadCalculator: JSON.stringify({
+        recipeId: record.id,
+        formula: record.recipe,
+      }),
     },
   };
   await request(
