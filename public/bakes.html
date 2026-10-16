@@ -40,7 +40,11 @@
           >
         </div>
         <p id="logSummary" class="hint"></p>
-        <div class="table-scroll" tabindex="0" aria-label="Bake results">
+        <div
+          class="table-scroll bake-results"
+          tabindex="0"
+          aria-label="Bake results"
+        >
           <table>
             <thead>
               <tr>
@@ -56,7 +60,7 @@
           </table>
         </div>
         <p id="emptyLog">No bakes recorded yet. Add your first result below.</p>
-        <details open>
+        <details>
           <summary>Compare method versions</summary>
           <div
             class="table-scroll"
@@ -182,6 +186,69 @@
           autolyse without starter is separate. Use minutes for the whole
           period, e.g. 720 for 12 hours.
         </p>
+        <details class="optional-measurements">
+          <summary>
+            More measurements
+            <span class="hint">Rise, proof and oven stages</span>
+          </summary>
+          <p class="hint">
+            Fill in only what you measured. No target values are assumed.
+          </p>
+          <div class="two">
+            <label
+              >Rise during bulk (%)<input
+                id="bulkRisePercent"
+                type="number"
+                min="0"
+                max="1000"
+                step="any"
+            /></label>
+            <label
+              >Fridge temperature (°C)<input
+                id="fridgeTempC"
+                type="number"
+                min="-30"
+                max="40"
+                step="any"
+            /></label>
+            <label
+              >Proof at room temperature (min)<input
+                id="ambientProofMinutes"
+                type="number"
+                min="0"
+                max="10080"
+                step="any"
+            /></label>
+            <label
+              >Cold proof (min)<input
+                id="coldProofMinutes"
+                type="number"
+                min="0"
+                max="10080"
+                step="any"
+            /></label>
+          </div>
+          <p class="hint">
+            For separate proof times, enter both; use 0 for a stage you skipped.
+            Their sum becomes the total final proof above. Bulk rise is the
+            increase in volume: doubling is 100%.
+          </p>
+          <h3>Oven stages</h3>
+          <p class="hint">
+            Record each oven setting in order, such as covered, then uncovered.
+          </p>
+          <div id="ovenStages"></div>
+          <button id="addOvenStage">Add oven stage</button>
+        </details>
+        <details class="optional-measurements">
+          <summary>What happened at each method step</summary>
+          <p class="hint">
+            The plan stays unchanged. Record actual time spent on each step,
+            including its rest. These times are not added to bulk or proof. pH
+            is optional, only if you measured it.
+          </p>
+          <div id="stepResults"></div>
+        </details>
         <label for="observations">Observations</label
         ><textarea
           id="observations"
