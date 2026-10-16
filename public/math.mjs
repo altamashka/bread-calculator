@@ -189,3 +189,46 @@ export function schemaRecipe(input) {
     keywords: "bread, baker percentage, sourdough",
   };
 }
+
+// Conventional three-/four-factor estimate; temperatures and friction are in °C.
+export function waterTemperature({
+  target,
+  room,
+  flour,
+  starter = null,
+  friction,
+}) {
+  for (const [name, value] of Object.entries({
+    target,
+    room,
+    flour,
+    friction,
+    ...(starter === null ? {} : { starter }),
+  })) {
+    if (
+      typeof value !== "number" ||
+      !Number.isFinite(value) ||
+      value < -50 ||
+      value > 100
+    )
+      throw Error(
+        `Enter a measured ${name === "friction" ? "mixing friction factor" : name + " temperature"} between −50 and 100 °C.`,
+      );
+  }
+  return (
+    target * (starter === null ? 3 : 4) -
+    room -
+    flour -
+    (starter ?? 0) -
+    friction
+  );
+}
+export function mixingFriction({ actual, water, room, flour, starter = null }) {
+  return waterTemperature({
+    target: actual,
+    room,
+    flour,
+    starter,
+    friction: water,
+  });
+}

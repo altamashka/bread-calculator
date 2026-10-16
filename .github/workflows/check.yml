@@ -39,6 +39,15 @@ jobs:
             sleep 1
           done
           exit 1
+      - name: Verify backup and isolated restore
+        run: |
+          bash -n scripts/backup.sh scripts/restore-check.sh
+          export BREAD_BACKUP_DIR="$RUNNER_TEMP/bread-backups"
+          export BREAD_CONTAINER=bread-check
+          export BREAD_VOLUME=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' bread-check)
+          bash scripts/backup.sh
+          archive=$(find "$BREAD_BACKUP_DIR" -name 'bread-*.tar.gz' | sort | tail -1)
+          bash scripts/restore-check.sh "$archive" bread-calculator:test
       - name: Container diagnostics
         if: failure()
         run: docker logs bread-check || true

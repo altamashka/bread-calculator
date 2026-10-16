@@ -20,6 +20,7 @@ const staticDir = fileURLToPath(new URL("./public/", import.meta.url));
 const files = {
   "/": ["index.html", "text/html; charset=utf-8"],
   "/app.mjs": ["app.mjs", "text/javascript"],
+  "/temperature.mjs": ["temperature.mjs", "text/javascript"],
   "/math.mjs": ["math.mjs", "text/javascript"],
   "/style.css": ["style.css", "text/css"],
   "/methods": ["methods.html", "text/html; charset=utf-8"],

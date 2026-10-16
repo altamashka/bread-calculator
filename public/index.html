@@ -7,6 +7,7 @@
     <title>Bread calculator</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.mjs"></script>
+    <script type="module" src="/temperature.mjs"></script>
   </head>
   <body>
     <main>
@@ -242,6 +243,104 @@
           </section>
         </aside>
       </div>
+      <details class="panel" id="temperatureTool">
+        <summary>
+          Plan your water temperature
+          <span class="hint">Optional mixing helper</span>
+        </summary>
+        <p class="hint">
+          Choose your own dough temperature and enter measured ingredient
+          temperatures. The mixing factor depends on your mixer, batch and
+          mixing time. Nothing here changes your recipe.
+        </p>
+        <label class="check"
+          ><input type="checkbox" id="tempHasStarter" checked />This dough
+          contains starter or a preferment</label
+        >
+        <div class="two">
+          <label id="tempTargetLabel"
+            >Desired dough temperature (°C)<input
+              id="tempTarget"
+              type="number"
+              min="-50"
+              max="100"
+              step="any"
+          /></label>
+          <label id="tempRoomLabel"
+            >Room temperature (°C)<input
+              id="tempRoom"
+              type="number"
+              min="-50"
+              max="100"
+              step="any"
+          /></label>
+          <label id="tempFlourLabel"
+            >Flour temperature (°C)<input
+              id="tempFlour"
+              type="number"
+              min="-50"
+              max="100"
+              step="any"
+          /></label>
+          <label id="tempStarterLabel"
+            >Starter temperature (°C)<input
+              id="tempStarter"
+              type="number"
+              min="-50"
+              max="100"
+              step="any"
+          /></label>
+          <label id="tempFrictionLabel"
+            >Mixing friction factor (°C)<input
+              id="tempFriction"
+              type="number"
+              min="-50"
+              max="100"
+              step="any"
+          /></label>
+        </div>
+        <output
+          class="temperature-result"
+          id="temperatureResult"
+          aria-live="polite"
+        ></output>
+        <p id="temperatureNote" class="hint"></p>
+        <details>
+          <summary>Find your mixing factor from a completed mix</summary>
+          <p class="hint">
+            Use the room, flour and starter temperatures from that same batch
+            above. For a similar batch and mixing routine, reuse the resulting
+            factor next time.
+          </p>
+          <div class="two">
+            <label
+              >Water used (°C)<input
+                id="tempWater"
+                type="number"
+                min="-50"
+                max="100"
+                step="any" /></label
+            ><label
+              >Dough after mixing (°C)<input
+                id="tempActual"
+                type="number"
+                min="-50"
+                max="100"
+                step="any"
+            /></label>
+          </div>
+          <p id="frictionResult" class="hint" aria-live="polite"></p>
+          <button id="useFriction">Use this mixing factor</button>
+        </details>
+        <p class="hint">
+          Uses the
+          <a
+            href="https://www.kingarthurbaking.com/pro/reference/dough-temperature"
+            >three- or four-factor method</a
+          >. Temperatures and mixing factors use °C throughout. This practical
+          estimate does not model ingredient heat capacities.
+        </p>
+      </details>
       <details class="guide">
         <summary>How the calculations work</summary>
         <div>
