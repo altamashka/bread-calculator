@@ -114,3 +114,43 @@ test("comparison excludes unrated entries and keeps changed method versions sepa
   assert.equal(groups[1].rating, 1);
   assert.deepEqual(compareMethods([]), []);
 });
+
+test("optional observations round-trip without changing planned methods or double-counting proof", () => {
+  const input = {
+    date: "2026-10-16",
+    recipe: { ...defaults(), method },
+    bulkRisePercent: 60,
+    fridgeTempC: 4,
+    ambientProofMinutes: 30,
+    coldProofMinutes: 720,
+    proofMinutes: 99,
+    stepResults: [{ minutes: 40, tempC: 24, ph: 4.2, notes: "Supple" }],
+    ovenStages: [
+      { minutes: 20, tempC: 240, mode: "covered", notes: "" },
+      { minutes: 25, tempC: 220, mode: "uncovered" },
+    ],
+  };
+  const b = validateBake(input);
+  assert.equal(b.proofMinutes, 750);
+  assert.equal(b.bulkMinutes, null);
+  assert.equal(b.recipe.method.steps[0].restMinutes, 45);
+  assert.deepEqual(validateBake(JSON.parse(JSON.stringify(b))), b);
+  input.stepResults[0].notes = "Edited";
+  assert.equal(b.stepResults[0].notes, "Supple");
+  for (const patch of [
+    { coldProofMinutes: null },
+    { bulkRisePercent: -1 },
+    { stepResults: [{ ph: 15 }] },
+    { ovenStages: [{ tempC: 501 }] },
+    { ovenStages: [{ mode: "guess" }] },
+    { stepResults: Array(4).fill({}) },
+  ])
+    assert.throws(() => validateBake({ ...b, ...patch }));
+  const legacy = validateBake({
+    date: "2026-10-16",
+    recipe: defaults(),
+    proofMinutes: 100,
+  });
+  assert.equal(legacy.proofMinutes, 100);
+  assert.deepEqual(legacy.stepResults, []);
+});
