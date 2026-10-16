@@ -311,12 +311,13 @@ $("newBake").addEventListener("click", () => {
 });
 $("saveBake").addEventListener("click", async () => {
   try {
-    const bake = validateBake(formValue());
+    const submitted = formValue();
+    const bake = validateBake(submitted);
     busy = true;
     update();
     const r = await post("/api/bakes", { id: savedId ?? undefined, bake });
     savedId = r.id;
-    baseline = formValue();
+    baseline = submitted;
     await refreshLogs();
     notice("Bake result saved. Its recipe and method version are retained.");
   } catch (e) {
