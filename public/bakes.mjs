@@ -24,6 +24,10 @@ let records = [],
   dirty = false,
   busy = false;
 const numbers = [
+  "bulkRisePercent",
+  "fridgeTempC",
+  "ambientProofMinutes",
+  "coldProofMinutes",
   "roomTempC",
   "doughTempC",
   "bulkMinutes",
@@ -44,11 +48,14 @@ function formValue() {
     ...Object.fromEntries(
       numbers.map((k) => [k, $(k).value === "" ? null : Number($(k).value)]),
     ),
+    stepResults: readRows("stepResults"),
+    ovenStages: readRows("ovenStages"),
     observations: $("observations").value,
     nextTime: $("nextTime").value,
   };
 }
 function update() {
+  $("bakeRecipe").dataset.previous = $("bakeRecipe").value;
   $("bakeSnapshot").replaceChildren();
   if (selectedRecipe) {
     const heading = document.createElement("h3");
@@ -64,6 +71,8 @@ function update() {
     $("bakeSnapshot").append(heading, list, preview);
   }
 
+  $("proofMinutes").readOnly =
+    $("ambientProofMinutes").value !== "" && $("coldProofMinutes").value !== "";
   dirty = baseline !== null && !same(formValue(), baseline);
   $("bakeState").textContent = dirty
     ? "Unsaved changes"
@@ -112,6 +121,7 @@ function clear() {
   $("bakeRecipe").value = "";
   $("bakeHeading").textContent = "Record a bake";
   methodOptions();
+  renderMeasurements({});
   baseline = formValue();
   update();
   notice("");
@@ -132,6 +142,7 @@ function open(record) {
   for (const k of [...numbers, "observations", "nextTime"])
     $(k).value = b[k] ?? "";
   methodOptions();
+  renderMeasurements(b);
   baseline = formValue();
   $("bakeHeading").textContent = "Edit bake result";
   update();
@@ -150,6 +161,10 @@ function filtered() {
 function cell(row, text) {
   const td = document.createElement("td");
   td.textContent = text;
+  td.dataset.label =
+    ["Date", "Recipe", "Method", "Hydration", "Result", ""][
+      row.children.length
+    ] ?? "";
   row.append(td);
   return td;
 }
@@ -235,30 +250,60 @@ async function refreshLogs() {
 for (const k of [...numbers, "observations", "nextTime", "bakeDate"])
   $(k).addEventListener("input", () => {
     notice("");
+    if (["ambientProofMinutes", "coldProofMinutes"].includes(k)) {
+      const a = $("ambientProofMinutes").value,
+        c = $("coldProofMinutes").value;
+      if (a !== "" && c !== "") $("proofMinutes").value = Number(a) + Number(c);
+    }
     update();
   });
 $("bakeRecipe").addEventListener("change", () => {
+  if (
+    readRows("stepResults").some((row) =>
+      Object.values(row).some((v) => v !== null && v !== ""),
+    ) &&
+    !confirm(
+      "Changing the recipe clears this entry’s step observations. Continue?",
+    )
+  ) {
+    $("bakeRecipe").value = $("bakeRecipe").dataset.previous;
+    return;
+  }
   const r = recipes.find((r) => r.id === $("bakeRecipe").value);
   if (!$("bakeRecipe").value) {
     selectedRecipe = null;
     selectedMethod = null;
     methodOptions();
+    renderMeasurements();
     update();
   }
   if (r) {
     selectedRecipe = validate(r.recipe);
     selectedMethod = selectedRecipe.method;
     methodOptions();
+    renderMeasurements();
     update();
   }
 });
 $("bakeMethod").addEventListener("change", () => {
+  if (
+    readRows("stepResults").some((row) =>
+      Object.values(row).some((v) => v !== null && v !== ""),
+    ) &&
+    !confirm(
+      "Changing the method clears this entry’s step observations. Continue?",
+    )
+  ) {
+    methodOptions();
+    return;
+  }
   const r = methods.find((r) => r.id === $("bakeMethod").value);
   selectedMethod = r
     ? methodSnapshot(r)
     : $("bakeMethod").value === "snapshot"
       ? selectedMethod
       : null;
+  renderMeasurements();
   update();
 });
 $("newBake").addEventListener("click", () => {
@@ -271,7 +316,7 @@ $("saveBake").addEventListener("click", async () => {
     update();
     const r = await post("/api/bakes", { id: savedId ?? undefined, bake });
     savedId = r.id;
-    baseline = bake;
+    baseline = formValue();
     await refreshLogs();
     notice("Bake result saved. Its recipe and method version are retained.");
   } catch (e) {
@@ -310,6 +355,12 @@ $("csv").addEventListener("click", () => {
     "Observations",
     "Next time",
     "Method steps JSON",
+    "Bulk rise (%)",
+    "Fridge (C)",
+    "Room proof (min)",
+    "Cold proof (min)",
+    "Actual steps JSON",
+    "Oven stages JSON",
   ];
   const data = filtered().map(({ bake: b }) => {
     const c = calculate(b.recipe);
@@ -331,6 +382,12 @@ $("csv").addEventListener("click", () => {
       b.observations,
       b.nextTime,
       JSON.stringify(b.recipe.method?.steps ?? []),
+      b.bulkRisePercent,
+      b.fridgeTempC,
+      b.ambientProofMinutes,
+      b.coldProofMinutes,
+      JSON.stringify(b.stepResults),
+      JSON.stringify(b.ovenStages),
     ];
   });
   download(
@@ -346,6 +403,124 @@ $("backup").addEventListener("click", async () => {
     notice(e.message, true);
   }
 });
+
+function readRows(id) {
+  return [...$(id).querySelectorAll(":scope > .step-card")].map((card) =>
+    Object.fromEntries(
+      [...card.querySelectorAll("[data-field]")].map((input) => [
+        input.dataset.field,
+        input.type === "number"
+          ? input.value === ""
+            ? null
+            : Number(input.value)
+          : input.value,
+      ]),
+    ),
+  );
+}
+function measurementCard(parent, title, row = {}, oven = false) {
+  const card = document.createElement("div");
+  card.className = "step-card";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  card.append(heading);
+  const grid = document.createElement("div");
+  grid.className = "two";
+  card.append(grid);
+  for (const [key, text, min, max] of [
+    [
+      "minutes",
+      oven ? "Time (min)" : "Actual step and rest (min)",
+      0,
+      oven ? 1440 : 10080,
+    ],
+    [
+      "tempC",
+      oven ? "Oven setting (°C)" : "Dough temperature (°C)",
+      oven ? 0 : -30,
+      oven ? 500 : 100,
+    ],
+    ...(!oven ? [["ph", "Measured pH", 0, 14]] : []),
+  ]) {
+    const label = document.createElement("label");
+    label.textContent = text;
+    const input = document.createElement("input");
+    Object.assign(input, {
+      type: "number",
+      min,
+      max,
+      step: "any",
+      value: row[key] ?? "",
+    });
+    input.dataset.field = key;
+    label.append(input);
+    grid.append(label);
+  }
+  if (oven) {
+    const label = document.createElement("label");
+    label.textContent = "Covered or steam";
+    const select = document.createElement("select");
+    select.dataset.field = "mode";
+    for (const [v, t] of [
+      ["", "Not recorded"],
+      ["covered", "Covered"],
+      ["steam", "Steam"],
+      ["uncovered", "Uncovered"],
+    ])
+      select.add(new Option(t, v));
+    select.value = row.mode ?? "";
+    label.append(select);
+    grid.append(label);
+  }
+  const label = document.createElement("label");
+  label.textContent = "Stage notes";
+  const notes = document.createElement("textarea");
+  notes.rows = 2;
+  notes.maxLength = 1000;
+  notes.dataset.field = "notes";
+  notes.value = row.notes ?? "";
+  label.append(notes);
+  card.append(label);
+  if (oven) {
+    const button = document.createElement("button");
+    button.textContent = "Remove stage";
+    button.addEventListener("click", () => {
+      card.remove();
+      update();
+    });
+    card.append(button);
+  }
+  card.addEventListener("input", update);
+  parent.append(card);
+}
+function renderMeasurements(b = { ovenStages: readRows("ovenStages") }) {
+  $("stepResults").replaceChildren();
+  $("ovenStages").replaceChildren();
+  const steps = selectedMethod?.steps ?? [];
+  steps.forEach((s, i) =>
+    measurementCard(
+      $("stepResults"),
+      `${i + 1}. ${s.title} · planned rest: ${duration(s.restMinutes)}`,
+      b.stepResults?.[i],
+    ),
+  );
+  if (!steps.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Choose a method to record its steps.";
+    $("stepResults").append(p);
+  }
+  (b.ovenStages ?? []).forEach((row, i) =>
+    measurementCard($("ovenStages"), "Oven stage", row, true),
+  );
+}
+$("addOvenStage").addEventListener("click", () => {
+  if ($("ovenStages").children.length >= 12)
+    return notice("Use at most 12 oven stages.", true);
+  measurementCard($("ovenStages"), "Oven stage", {}, true);
+  update();
+});
+
 guardUnload(() => dirty);
 clear();
 Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
@@ -361,6 +536,7 @@ Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
       selectedMethod = selectedRecipe.method;
       $("bakeRecipe").value = selected.id;
       methodOptions();
+      renderMeasurements();
     }
     baseline = formValue();
     update();

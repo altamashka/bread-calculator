@@ -827,3 +827,62 @@ a[aria-disabled="true"] {
   text-decoration: none;
   cursor: default;
 }
+/* Optional tools share the quiet card styling of the main calculator. */
+.optional-measurements > summary,
+#temperatureTool > summary {
+  font-size: 15px;
+  color: #3e5436;
+}
+.optional-measurements > summary .hint,
+#temperatureTool > summary .hint {
+  display: block;
+  margin: 4px 0 0 17px;
+  font-weight: 400;
+}
+.temperature-result {
+  display: block;
+  margin-top: 22px;
+  padding: 18px;
+  background: #eaf0e2;
+  border-radius: 6px;
+  font-size: 18px;
+  color: #354b2d;
+}
+@media (max-width: 420px) {
+  #temperatureTool .two {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .bake-results thead {
+    display: none;
+  }
+  .bake-results tr {
+    display: block;
+    border-bottom: 1px solid #deded0;
+    padding: 12px 0;
+  }
+  .bake-results td {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 12px;
+    max-width: none;
+    border: 0;
+    padding: 5px 0;
+  }
+  .bake-results td::before {
+    content: attr(data-label);
+    color: #65705f;
+  }
+  .bake-results td:last-child {
+    display: block;
+    margin-top: 8px;
+  }
+  .bake-results td:last-child::before {
+    display: none;
+  }
+  .bake-results button {
+    width: 100%;
+    min-height: 40px;
+  }
+}

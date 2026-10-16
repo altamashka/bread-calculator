@@ -92,3 +92,19 @@ test("recipe export contains weighed blend and method without invented instructi
   assert.equal(j.recipeInstructions.length, 2);
   assert.deepEqual(schemaRecipe(defaults()).recipeInstructions, []);
 });
+
+test("water temperature and mixing calibration use three or four factors in Celsius", async () => {
+  const { waterTemperature, mixingFriction } = await import(
+    "../public/math.mjs"
+  );
+  const input = { target: 25, room: 22, flour: 23, starter: 20, friction: 5 };
+  assert.equal(waterTemperature(input), 30);
+  assert.equal(waterTemperature({ ...input, starter: null }), 25);
+  assert.equal(mixingFriction({ ...input, actual: 25, water: 30 }), 5);
+  assert.equal(
+    mixingFriction({ ...input, starter: null, actual: 25, water: 25 }),
+    5,
+  );
+  assert.throws(() => waterTemperature({ ...input, flour: NaN }));
+  assert.throws(() => waterTemperature({ ...input, friction: undefined }));
+});

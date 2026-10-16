@@ -39,3 +39,25 @@ The server has no HTTPS Git credential for the new private repository. The initi
 `~/docker/bread-calculator/.env` stores the deployed `BREAD_REVISION` with mode 600. Preserve this value and any later Mealie settings across updates. The original named recipe is “Everyday sourdough”.
 
 The initial HTTPS and Mealie acceptance checks are tracked in [issue #3](https://github.com/altamashka/bread-calculator/issues/3); scheduled backup and restore verification remains in [issue #2](https://github.com/altamashka/bread-calculator/issues/2). Existing Tailscale service mappings are retained.
+
+## Scheduled backups (configured 2026-10-16)
+
+Ben approved nightly backups, an isolated restore drill, deployment and retention of 30 automatic copies. The application-owned `scripts/backup.sh` is installed as `~/.local/bin/bread-backup` (mode 700). It archives all of `bread-calculator_recipes` into `~/backups/bread-calculator/scheduled` (directory 700; archives/checksums 600). Credentials are excluded. Existing protected environment/manual backups are separate and untouched.
+
+The existing user crontab runs this at **03:30 Europe/Berlin**, covering summer and winter UTC offsets without changing the host timezone or other jobs:
+
+```cron
+30 1,2 * * * [ "$(TZ=Europe/Berlin date +\%H)" = 03 ] && /home/benmccash/.local/bin/bread-backup >> /home/benmccash/backups/bread-calculator/scheduled/backup.log 2>&1
+```
+
+The previous crontab is protected alongside the backups. A user systemd timer was tested but disabled because login lingering is off; cron does not depend on a login session. The job uses a lock, verifies the mounted volume, briefly pauses only Bread, unpauses on failure, checks gzip/tar integrity and records SHA-256. Only this job's oldest timestamped archives/checksums beyond 30 copies are removed. Other/manual backups and failed logs are not pruned. Check `backup.log`, the newest archive date, `sha256sum -c <archive>.sha256` and `/healthz` when investigating a missed backup. A backup failure exits nonzero and remains in the protected log. These same-disk copies are not an off-host disaster backup.
+
+Run a fresh backup with `~/.local/bin/bread-backup`. For an isolated restore, use the installed copy of `scripts/restore-check.sh`:
+
+```sh
+~/.local/bin/bread-restore-check /absolute/protected/bread-YYYYMMDDTHHMMSSZ.tar.gz bread-calculator:<revision>
+```
+
+Its checksum sidecar must be adjacent. It creates a fresh `bread-restore-check-<timestamp>-<pid>` volume/container, mounts no production volume and has no network, published ports or Mealie settings. It verifies raw restored records against `/api/archive` and each collection API, including complete formula/method snapshots and link metadata, then stops the container and retains it and its volume for inspection. It cannot overwrite the live store. Restoring production is a separate deliberate operation requiring approval and a fresh safety backup; do not point the app at a restored test volume as a shortcut.
+
+Verified on 2026-10-16: the live volume restored with all three recipes and Mealie identity metadata unchanged. Because production had no methods or bakes, synthetic method/recipe/bake records were created only in the isolated restore, its method library edited, and that volume backed up and restored again: four recipes, one method, one bake validated. Historical recipe/bake methods retained their original steps/rests. The isolated copies are protected personal-data backups, not source files; no production records or remote Mealie recipes were created or modified by the drill.
