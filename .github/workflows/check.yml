@@ -12,7 +12,7 @@ jobs:
           node-version: "24"
       - run: npm test
       - run: docker compose config --quiet
-      - run: docker build -t bread-calculator:test .
+      - run: docker build --label org.opencontainers.image.source=https://github.com/altamashka/bread-calculator --label org.opencontainers.image.revision=${{ github.sha }} -t bread-calculator:test .
       - name: Check image health and page
         run: |
           docker run -d --name bread-check -p 127.0.0.1:8078:8080 --mount type=volume,target=/app/data --read-only --tmpfs /tmp --cap-drop ALL bread-calculator:test
@@ -42,13 +42,58 @@ jobs:
           exit 1
       - name: Verify backup and isolated restore
         run: |
-          bash -n scripts/backup.sh scripts/restore-check.sh
+          bash -n scripts/backup.sh scripts/restore-check.sh scripts/auto-deploy.sh
           export BREAD_BACKUP_DIR="$RUNNER_TEMP/bread-backups"
           export BREAD_CONTAINER=bread-check
           export BREAD_VOLUME=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' bread-check)
           bash scripts/backup.sh
           archive=$(find "$BREAD_BACKUP_DIR" -name 'bread-*.tar.gz' | sort | tail -1)
           bash scripts/restore-check.sh "$archive" bread-calculator:test
+      - name: Save tested release image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker save bread-calculator:test | gzip > "$RUNNER_TEMP/bread-image.tar.gz"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: bread-release-image
+          path: ${{ runner.temp }}/bread-image.tar.gz
+          retention-days: 1
       - name: Container diagnostics
         if: failure()
         run: docker logs bread-check || true
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: bread-publish-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bread-release-image
+          path: ${{ runner.temp }}
+      - name: Load tested image
+        run: docker load --input "$RUNNER_TEMP/bread-image.tar.gz"
+      - name: Publish only the current main revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ github.sha }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          latest=$(gh api repos/altamashka/bread-calculator/git/ref/heads/main --jq .object.sha)
+          if [ "$latest" != "$REVISION" ]; then
+            echo 'A newer main revision exists; skipping superseded release.'
+            exit 0
+          fi
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null' EXIT
+          docker tag bread-calculator:test "ghcr.io/altamashka/bread-calculator:$REVISION"
+          docker push "ghcr.io/altamashka/bread-calculator:$REVISION"
+          docker tag "ghcr.io/altamashka/bread-calculator:$REVISION" ghcr.io/altamashka/bread-calculator:main
+          docker push ghcr.io/altamashka/bread-calculator:main
