@@ -91,6 +91,12 @@
               /></label>
             </div>
             <p id="blend" class="hint"></p>
+            <label>Saved flour blend<select id="blendSelect"><option value="">Choose a blend…</option></select></label>
+            <button id="applyBlend" type="button">Apply selected blend</button>
+            <label>Blend name<input id="blendName" maxlength="120" /></label>
+            <button id="saveBlend" type="button">Save current blend as new</button>
+            <button id="updateBlend" type="button">Update selected blend</button>
+            <p class="hint">White flour is the remainder. Applying copies the percentages into this draft. Saving a blend does not save the recipe or change earlier recipes and bakes.</p>
             <label
               >Starter hydration (%)<input
                 id="starterHydration"
@@ -237,7 +243,7 @@
                   type="file"
                   accept="application/json,.json" /></label
               ><button id="archive" class="subtle">
-                Download all recipes, methods and bake logs
+                Download all recipes, methods, blends and bake logs
               </button>
             </details>
           </section>

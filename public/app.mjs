@@ -1,5 +1,7 @@
 import {
   defaults,
+  validateBlend,
+  applyBlend,
   ingredients,
   calculate,
   validate,
@@ -27,6 +29,7 @@ let recipe = defaults(),
   savedId = null,
   records = [],
   methods = [],
+  blends = [],
   valid = true,
   dirty = false,
   ready = false,
@@ -263,6 +266,45 @@ async function refreshMethods() {
   methods.sort((a, b) => a.method.name.localeCompare(b.method.name));
   showMethod();
 }
+async function refreshBlends(selected = "") {
+  blends = await api("/api/blends");
+  $("blendSelect").replaceChildren(new Option("Choose a blend…", ""));
+  blends.sort((a, b) => a.blend.name.localeCompare(b.blend.name))
+    .forEach(r => $("blendSelect").add(new Option(r.blend.name, r.id)));
+  $("blendSelect").value = selected;
+}
+$("blendSelect").addEventListener("change", () => {
+  const record = blends.find(r => r.id === $("blendSelect").value);
+  $("blendName").value = record?.blend.name ?? "";
+});
+action("applyBlend", () => {
+  const record = blends.find(r => r.id === $("blendSelect").value);
+  if (!record) throw Error("Choose a saved flour blend first.");
+  recipe = applyBlend(recipe, record.blend);
+  fill();
+  status("Flour blend applied. Save the recipe to keep these percentages.");
+});
+let savingBlend = false;
+async function saveBlend(update) {
+  if (savingBlend) return;
+  const id = update ? $("blendSelect").value : null;
+  if (update && !blends.some(r => r.id === id)) throw Error("Choose a saved flour blend first.");
+  const blend = validateBlend({ name: $("blendName").value, wholeWheat: recipe.wholeWheat, rye: recipe.rye });
+  if (blends.some(r => r.id !== id && r.blend.name.toLocaleLowerCase() === blend.name.toLocaleLowerCase()))
+    throw Error("Use a different blend name or update the selected blend.");
+  savingBlend = true;
+  $("saveBlend").disabled = $("updateBlend").disabled = true;
+  try {
+    const record = await post("/api/blends", { ...(id ? { id } : {}), blend });
+    await refreshBlends(record.id);
+    status("Flour blend saved. Existing recipes and bakes keep their percentages.");
+  } finally {
+    savingBlend = false;
+    $("saveBlend").disabled = $("updateBlend").disabled = false;
+  }
+}
+action("saveBlend", () => saveBlend(false));
+action("updateBlend", () => saveBlend(true));
 function chooseMethodForMealie() {
   methodOptions($("exportMethod"), recipe.method);
   methodPreview($("exportPreview"), recipe.method);
@@ -440,7 +482,7 @@ action("export", () => {
 });
 action("archive", async () => {
   download("bread-backup.json", await api("/api/archive"));
-  status("Recipes, methods and bake logs downloaded.");
+  status("Recipes, methods, flour blends and bake logs downloaded.");
 });
 action("print", () => window.print());
 $("import").addEventListener("change", async () => {
@@ -487,7 +529,7 @@ document.addEventListener("click", (event) => {
 });
 guardUnload(() => ready && dirty && !internalNavigation);
 fill();
-Promise.all([refresh(), refreshMethods(), api("/api/config")])
+Promise.all([refresh(), refreshMethods(), api("/api/config"), refreshBlends()])
   .then(([, , c]) => {
     mealie = c.mealie;
     ready = true;
@@ -532,7 +574,7 @@ Promise.all([refresh(), refreshMethods(), api("/api/config")])
   })
   .catch((e) => {
     ready = false;
-    status(`Could not load saved recipes or methods: ${e.message}`, true);
+    status(`Could not load saved recipes, methods or flour blends: ${e.message}`, true);
     savedState();
   });
 window.addEventListener("focus", () => {

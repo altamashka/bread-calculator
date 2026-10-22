@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { validate } from "./public/math.mjs";
+import { validate, validateBlend } from "./public/math.mjs";
 import { validateMethod, InputError } from "./public/methods-model.mjs";
 import { validateBake } from "./public/bakes-model.mjs";
 
@@ -104,6 +104,7 @@ export function createServer() {
           mealie: !!(process.env.MEALIE_URL && process.env.MEALIE_TOKEN),
         });
       const collections = {
+        "/api/blends": { field: "blend", check: validateBlend, directory: `${dataDir}/blends` },
         "/api/methods": {
           field: "method",
           check: validateMethod,
@@ -121,6 +122,7 @@ export function createServer() {
           exportedAt: new Date().toISOString(),
           recipes: await listRecords(dataDir),
           methods: await listRecords(`${dataDir}/methods`),
+          blends: await listRecords(`${dataDir}/blends`),
           bakes: await listRecords(`${dataDir}/bakes`),
         });
       if (collections[path]) {
