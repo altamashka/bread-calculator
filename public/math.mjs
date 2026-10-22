@@ -232,3 +232,20 @@ export function mixingFriction({ actual, water, room, flour, starter = null }) {
     friction: water,
   });
 }
+
+// Presets describe added flour only; recipes retain independent numeric values.
+export function validateBlend(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      typeof input.name !== "string" || !input.name.trim() || input.name.length > 120)
+    throw Error("Use a flour blend name of up to 120 characters.");
+  for (const key of ["wholeWheat", "rye"])
+    if (typeof input[key] !== "number" || !Number.isFinite(input[key]) || input[key] < 0 || input[key] > 100)
+      throw Error("Enter flour blend percentages between 0 and 100.");
+  if (input.wholeWheat + input.rye > 100)
+    throw Error("Whole wheat and rye must total no more than 100%.");
+  return { name: input.name.trim(), wholeWheat: input.wholeWheat, rye: input.rye };
+}
+export function applyBlend(recipe, blend) {
+  const { wholeWheat, rye } = validateBlend(blend);
+  return validate({ ...recipe, wholeWheat, rye });
+}
