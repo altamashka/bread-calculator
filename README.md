@@ -18,6 +18,8 @@ The optional **Plan your water temperature** helper estimates mixing water tempe
 
 The default formula is Ben’s recipe: 1,000 g added flour, 750 g water, 20 g salt and 200 g starter at 100% hydration. It weighs 1,970 g and has **77.2727% total water hydration**. Portions are raw dough weights, not baked weights. Calculations retain full precision; weights are displayed to 0.1 g.
 
+In **Flour blend and starter hydration**, save named white/whole-wheat/rye blends for reuse across recipes and devices. White flour is the remainder of the added flour. Select a blend and apply it explicitly, or update the selected preset from the current percentages. Recipes and bake snapshots retain their own percentages when presets change. Full JSON archives and volume backups include presets. Starter flour composition and hydration are independent.
+
 Old BRDCLC query links remain compatible. `starter` and `poolish` are combined with `leaven`; they share a single adjustable hydration. The calculator does not infer different flour absorption or yeast substitutions. See [research.md](docs/research.md).
 
 ## Storage and Mealie
@@ -32,9 +34,9 @@ Existing exports from v1 are linked on first save only when their original name 
 
 ## Data and backups
 
-The Compose volume contains recipe JSON files at its root, methods in `methods/` and bake logs in `bakes/`. Files are atomically replaced. Existing recipe files require no bulk migration; optional method fields default to empty. Method changes cannot rewrite previous recipe or bake snapshots. This is a household tool; later saves to the same item win.
+The Compose volume contains recipe JSON files at its root, methods in `methods/`, flour blends in `blends/` and bake logs in `bakes/`. Files are atomically replaced. Existing recipe files require no bulk migration; optional method fields default to empty. Method changes cannot rewrite previous recipe or bake snapshots. This is a household tool; later saves to the same item win.
 
-Download a recipe or method individually, or download the full JSON archive of recipes, methods and bakes. Full archive restoration is currently an operator task; the recipe and method import controls accept their individual exported files. Bake CSV is also available for spreadsheet analysis. Protected volume backups run nightly at 03:30 Berlin time and keep 30 automatic copies. An isolated restore drill verified recipes, Mealie identities and historical method/bake snapshots. See [backup and recovery](docs/deployment.md#scheduled-backups-configured-2026-10-16). These are same-host backups; off-host protection is separate.
+Download a recipe or method individually, or download the full JSON archive of recipes, methods, flour blends and bakes. Full archive restoration is currently an operator task; the recipe and method import controls accept their individual exported files. Bake CSV is also available for spreadsheet analysis. Protected volume backups run nightly at 03:30 Berlin time and keep 30 automatic copies. An isolated restore drill verified recipes, Mealie identities and historical method/bake snapshots. See [backup and recovery](docs/deployment.md#scheduled-backups-configured-2026-10-16). These are same-host backups; off-host protection is separate.
 
 Saved links identify a server recipe. Unsaved share links include the formula, notes and selected method; long drafts must be saved or downloaded as files. Do not put secrets in notes. Browser draft storage is not a backup and is cleared with the tab/browser session. Downloaded archives and CSV contain personal baking notes; protect them accordingly.
 

@@ -28,11 +28,12 @@ jobs:
           import assert from 'node:assert/strict';
           const base='http://127.0.0.1:8080';
           async function post(path,value){const r=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});assert.equal(r.status,200);return r.json();}
+          await post('/api/blends',{blend:{name:'CI blend',wholeWheat:20,rye:10}});
           const m=await post('/api/methods',{method:{name:'CI method',steps:[{title:'Autolyse',instructions:'Mix flour and water.',restMinutes:30}]}});
           const r=await post('/api/recipes',{recipe:{name:'CI method recipe',method:{id:m.id,savedAt:m.updatedAt,...m.method}}});
           await post('/api/bakes',{bake:{date:'2026-10-15',recipe:r.recipe,rating:4}});
           const archive=await (await fetch(base+'/api/archive')).json();
-          assert.equal(archive.methods.length,1);assert.equal(archive.bakes.length,1);
+          assert.equal(archive.blends.length,1);assert.equal(archive.methods.length,1);assert.equal(archive.bakes.length,1);
           JS
           for attempt in $(seq 1 30); do
             if [ "$(docker inspect --format '{{.State.Health.Status}}' bread-check)" = healthy ]; then exit 0; fi

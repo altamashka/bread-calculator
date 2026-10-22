@@ -23,7 +23,7 @@ done
 docker exec -i "$name" node --input-type=module <<'JS'
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
-import {validate,calculate} from './public/math.mjs';
+import {validate,calculate,validateBlend} from './public/math.mjs';
 import {validateMethod} from './public/methods-model.mjs';
 import {validateBake} from './public/bakes-model.mjs';
 const base='http://127.0.0.1:8080';
@@ -32,7 +32,7 @@ assert.equal((await get('/api/config')).mealie,false);
 const archive=await get('/api/archive');
 const pattern=/^[0-9a-f-]{36}\.json$/;
 for (const [collection,directory,field,check] of [
-  ['recipes','/app/data','recipe',validate],['methods','/app/data/methods','method',validateMethod],['bakes','/app/data/bakes','bake',validateBake]]) {
+  ['blends','/app/data/blends','blend',validateBlend],['recipes','/app/data','recipe',validate],['methods','/app/data/methods','method',validateMethod],['bakes','/app/data/bakes','bake',validateBake]]) {
   const names=(await readdir(directory)).filter(n=>pattern.test(n));
   const disk=await Promise.all(names.map(async n=>JSON.parse(await readFile(`${directory}/${n}`,'utf8'))));
   const sorted=rows=>rows.sort((a,b)=>a.id.localeCompare(b.id));
