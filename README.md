@@ -58,4 +58,4 @@ docker compose ps
 curl -fsS http://127.0.0.1:8078/healthz
 ```
 
-The container runs as an unprivileged user, with a read-only root filesystem, dropped capabilities, resource limits, a persistent volume and an HTTP healthcheck. The published port binds loopback only. Watchtower is disabled. See [deployment.md](docs/deployment.md) for the exact server rollout, protected backups and rollback. Preserve the backend token when updating `BREAD_REVISION`.
+The container runs as an unprivileged user, with a read-only root filesystem, dropped capabilities, resource limits, a persistent volume and an HTTP healthcheck. The published port binds loopback only. Watchtower is disabled. Automatic tested-image publishing and a host updater are prepared; server activation is pending approval. See [deployment.md](docs/deployment.md) for the exact server rollout, protected backups and rollback. Preserve the backend token when updating `BREAD_REVISION`.
