@@ -61,3 +61,31 @@ Run a fresh backup with `~/.local/bin/bread-backup`. For an isolated restore, us
 Its checksum sidecar must be adjacent. It creates a fresh `bread-restore-check-<timestamp>-<pid>` volume/container, mounts no production volume and has no network, published ports or Mealie settings. It verifies raw restored records against `/api/archive` and each collection API, including complete formula/method snapshots and link metadata, then stops the container and retains it and its volume for inspection. It cannot overwrite the live store. Restoring production is a separate deliberate operation requiring approval and a fresh safety backup; do not point the app at a restored test volume as a shortcut.
 
 Verified on 2026-10-16: the live volume restored with all three recipes and Mealie identity metadata unchanged. Because production had no methods or bakes, synthetic method/recipe/bake records were created only in the isolated restore, its method library edited, and that volume backed up and restored again: four recipes, one method, one bake validated. Historical recipe/bake methods retained their original steps/rests. The isolated copies are protected personal-data backups, not source files; no production records or remote Mealie recipes were created or modified by the drill.
+
+## Automatic releases (implementation; activation pending)
+
+After this deployment PR is merged, successful `main` checks publish **the exact tested image** to private `ghcr.io/altamashka/bread-calculator:<commit>` and `:main`. Pull-request and other branch checks never publish. Publishing is serialized and superseded main revisions are skipped. Publication failures leave the existing server image running. Package access inherits this private repository; do not make the image public.
+
+`scripts/auto-deploy.sh` is a host-side polling updater. It needs an existing Docker login with read access to the private package, not a source-repository checkout credential. A read-only inspection on 2026-10-22 found an existing GHCR login on altamacmini; whether it can read this new package remains to be verified. Do not copy registry credentials into this repository or GitHub logs.
+
+Activation requires Ben's approval for installing the updater and its schedule. Once approved and this PR is merged:
+
+1. Confirm the main publishing job succeeded and package visibility/access is private. Test `docker pull ghcr.io/altamashka/bread-calculator:main` using the existing server login. If it fails, stop and request approval for a narrowly scoped registry credential; do not reuse a broader source token.
+2. Copy the reviewed script to `~/.local/bin/bread-auto-deploy` with mode 700. It runs as the existing Docker-capable user, never root. Its default paths match the deployed Bread wrapper, container and data volume. Keep the wrapper and protected `.env` unchanged.
+3. Preserve a mode-600 copy of the existing user crontab in `~/.local/state/bread-deploy/`. Add this line without replacing other jobs:
+
+   ```cron
+   */5 * * * * /home/benmccash/.local/bin/bread-auto-deploy >> /home/benmccash/.local/state/bread-deploy/deploy.log 2>&1
+   ```
+
+4. Run the updater once under observation. Check the log, container image digest and health, private HTTPS, saved recipe availability, Methods, Bake log, flour blends and full archive. Do not save synthetic records to production or call Mealie write APIs. Confirm the server's Docker credential configuration and application `.env` remain protected.
+
+Each run obtains a deployment lock and the scheduled backup lock, pulls the candidate, and exits without a restart when the running image matches. Before replacement it verifies the expected running container/data volume, validates Compose without printing secrets, briefly pauses only Bread, and verifies a complete gzip/tar backup plus SHA-256. Backups are mode 600 in `~/.local/state/bread-deploy/`; automatic deployment backups and old images are retained, not pruned. Monitor disk usage and arrange any retention change explicitly.
+
+The updater writes a private Compose override at `~/.local/state/bread-deploy/image.yaml` pinned to a registry digest. It runs Compose with both the original wrapper and this override, `--no-build --pull never --no-deps`, targeting only Bread. Existing loopback ports, Mealie environment, external network, named volume, non-root user and Watchtower exclusion remain in effect. `BREAD_REVISION` in `.env` remains the historical locally built revision; the override identifies the active release. **All later manual Compose operations must include this override** or they may switch back to the historical local image.
+
+A replacement failure or failed health/page checks restores the previous local image ID without restoring or deleting data. A failed digest is recorded in `failed-image` and is not retried on each poll; a newer published digest can deploy normally. A rollback failure exits nonzero and logs that operator attention is needed. The log/cron exit is local reporting, not an external alert service. Inspect it after activation and when investigating updates.
+
+To stop automatic deployment, remove only its cron line, preserving backups and other jobs. To roll back manually, pause that schedule, retain the current override, set its image to the previous retained image ID/digest, run Compose with both files and verify health and private HTTPS. Never run `down -v` or restore a data backup automatically. A rollback can leave records written by the newer app in place; future schema-breaking changes require a migration/rollback plan before merge. After investigating a failed release, remove only the updater's `failed-image` marker to allow an intentional retry.
+
+Cross-repository implementation guidance: [Agent guide](automatic-deployment-guide.md).
