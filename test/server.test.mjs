@@ -12,6 +12,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const remote = new Map();
+  const breadCategory = { id: randomUUID(), name: "Bread", slug: "bread" },
+    otherCategory = { id: randomUUID(), name: "Baking", slug: "baking" };
+  let categoryAvailable = true;
   let creates = 0,
     patches = 0,
     failPatch = false;
@@ -25,6 +28,11 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (url.pathname === "/api/organizers/categories/slug/bread")
+      return send(
+        categoryAvailable ? 200 : 404,
+        categoryAvailable ? breadCategory : {},
+      );
     if (url.pathname === "/api/recipes" && req.method === "GET")
       return send(200, {
         items: [...remote.values()].map((r) => ({
@@ -48,6 +56,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
         recipeIngredient: j.recipeIngredient.map((note) => ({ note })),
         recipeInstructions: [],
         extras: { keep: "untouched" },
+        recipeCategory: [otherCategory],
       });
       return send(201, slug);
     }
@@ -59,6 +68,16 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
       patches++;
       if (Object.values(value.extras ?? {}).some((v) => typeof v !== "string"))
         return send(500, { error: "Mealie extras values must be text" });
+      // Installed Mealie 3.10.2 drops unset defaults on PATCH; its ORM then
+      // requires ingredient_references even though OpenAPI defaults it to [].
+      if (
+        value.recipeInstructions.some(
+          (step) => !Array.isArray(step.ingredientReferences),
+        )
+      )
+        return send(500, {
+          error: "RecipeInstruction requires ingredient_references",
+        });
       if (failPatch) {
         failPatch = false;
         return send(500, {});
@@ -135,7 +154,10 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   };
   const saved = await (
     await post("/api/recipes", {
-      recipe: { name: "Test loaf", method: snapshot },
+      recipe: {
+        name: "Test loaf", method: snapshot,
+        wholeWheat: 20, rye: 10, starterHydration: 50,
+      },
       mealieEnabled: true,
     })
   ).json();
@@ -149,17 +171,36 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.ok(linked.mealieSlug);
   assert.equal(linked.mealieRecipeId, [...remote.values()][0].id);
   assert.equal([...remote.values()][0].recipeInstructions[0].title, "Autolyse");
+  assert.deepEqual(
+    [...remote.values()][0].recipeInstructions[0].ingredientReferences,
+    [],
+  );
   assert.match(
     [...remote.values()][0].recipeInstructions[0].text,
     /30 minutes/,
   );
   assert.equal([...remote.values()][0].extras.keep, "untouched");
+  assert.deepEqual([...remote.values()][0].recipeCategory, [
+    otherCategory, breadCategory,
+  ]);
+  const flourNotes = [...remote.values()][0].recipeIngredient.map((i) => i.note);
+  for (const note of [
+    "700 g white flour", "200 g whole wheat flour", "100 g rye flour",
+  ])
+    assert.ok(flourNotes.includes(note));
   const metadata = JSON.parse([...remote.values()][0].extras.breadCalculator);
   assert.equal(metadata.recipeId, saved.id);
   assert.deepEqual(metadata.formula, saved.recipe);
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
   assert.equal(patches, 1);
+  // A previously synced formula still regains Bread if removed in Mealie.
+  [...remote.values()][0].recipeCategory = [otherCategory];
+  assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
+  assert.equal(patches, 2);
+  assert.deepEqual([...remote.values()][0].recipeCategory, [
+    otherCategory, breadCategory,
+  ]);
   const changed = { ...saved.recipe, water: 70 };
   await post("/api/recipes", {
     id: saved.id,
@@ -168,7 +209,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   });
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
-  assert.equal(patches, 2);
+  assert.equal(patches, 3);
   assert.ok(
     [...remote.values()][0].recipeIngredient.some(
       (i) => i.note === "700 g Water",
@@ -200,7 +241,11 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     await post("/api/recipes", { recipe: { name: "Retry loaf" } })
   ).json();
   failPatch = true;
-  assert.equal((await post("/api/mealie", { id: retry.id })).status, 500);
+  const failedSync = await post("/api/mealie", { id: retry.id });
+  assert.equal(failedSync.status, 502);
+  assert.deepEqual(await failedSync.json(), {
+    error: "Mealie returned HTTP 500. Your calculator copy is saved.",
+  });
   assert.equal(creates, 2);
   assert.equal((await post("/api/mealie", { id: retry.id })).status, 200);
   assert.equal(creates, 2);
@@ -239,4 +284,25 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.ok(
     remote.get("legacy").recipeIngredient.some((i) => i.note === "720 g Water"),
   );
+  assert.deepEqual(remote.get("legacy").recipeCategory, [breadCategory]);
+  const wholegrain = await (
+    await post("/api/recipes", {
+      recipe: { name: "Wholegrain test", flour: 500, wholeWheat: 80, rye: 20 },
+    })
+  ).json();
+  assert.equal((await post("/api/mealie", { id: wholegrain.id })).status, 200);
+  const notes = [...remote.values()].at(-1).recipeIngredient.map((i) => i.note);
+  assert.ok(notes.includes("400 g whole wheat flour"));
+  assert.ok(notes.includes("100 g rye flour"));
+  assert.ok(!notes.some((note) => note.includes("white flour")));
+  categoryAvailable = false;
+  const missingCategory = await (
+    await post("/api/recipes", { recipe: { name: "Missing category test" } })
+  ).json();
+  const beforeCreates = creates;
+  const blocked = await post("/api/mealie", { id: missingCategory.id });
+  assert.equal(blocked.status, 400);
+  assert.match((await blocked.json()).error, /Create the "Bread" category/);
+  assert.equal(creates, beforeCreates);
+  assert.ok((await get("/api/recipes")).some((r) => r.id === missingCategory.id));
 });
