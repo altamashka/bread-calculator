@@ -1,36 +1,50 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#f5f1e8" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f4f3ee" />
     <title>Bake · Bread Bench</title>
-    <link rel="stylesheet" href="/style.css" /><script type="module" src="/bake-mode.mjs"></script>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/bake-mode.mjs"></script>
   </head>
   <body>
     <main class="bake-mode">
-      <header class="app-header"><h1>Bake</h1><nav aria-label="Main navigation"><a href="/">Calculator</a><a href="/methods">Methods</a><a href="/bakes">Bake log</a></nav></header>
+      <header class="app-header">
+        <div class="page-heading"><a class="brand" href="/">Bread Bench</a><h1>Bake</h1></div>
+        <nav aria-label="Main navigation"><a href="/">Calculator</a><a href="/methods">Methods</a><a href="/bakes">Bake log</a></nav>
+      </header>
       <p id="status" role="status" aria-live="polite">Opening saved recipe…</p>
-      <section id="bakeSession" class="panel" hidden>
-        <p class="eyebrow">SAVED FORMULA · READ ONLY</p><h2 id="recipeTitle"></h2><p id="batchSummary" class="hint"></p>
-        <p id="snapshotHint" class="hint"></p>
+      <section id="bakeSession" hidden>
+        <div class="bake-heading">
+          <div><p class="eyebrow">YOUR BAKING WORKSPACE</p><h2 id="recipeTitle"></h2><p id="batchSummary"></p></div>
+          <div class="bake-heading-actions"><a id="editRecipe" class="button-link">Edit recipe</a><button id="newSession" class="subtle">Start a new bake</button></div>
+        </div>
+        <p id="snapshotNotice" class="snapshot-notice" role="status" hidden></p>
         <div class="bake-tabs" role="group" aria-label="Baking view"><button id="weighTab" aria-pressed="true">Weigh ingredients</button><button id="methodTab" aria-pressed="false">Follow method</button></div>
         <div class="bake-columns">
-        <section id="weighPanel" aria-label="Weigh ingredients"><h2>Ingredients</h2>
-          <label for="weighLayout">Weighing layout</label><select id="weighLayout"><option value="checklist">Checklist</option><option value="focus">One ingredient at a time</option></select>
-          <p id="weighedProgress" role="status" aria-live="polite"></p><div id="weighList"></div><div id="focusIngredient" hidden></div>
-        </section>
-        <section id="methodPanel" aria-label="Follow method" hidden>
-          <h2>Method</h2>
-          <p id="stepProgress" role="status" aria-live="polite"></p><h3 id="stepTitle"></h3><p id="stepInstructions" class="step-instructions"></p><p id="stepRest" class="hint"></p>
-          <label id="stepCheck" class="weigh-row"><input id="stepDone" type="checkbox" /><span>Step completed</span></label>
-          <div class="bake-step-actions"><button id="previousStep">Previous step</button><button id="nextStep">Next step</button></div>
-          <details open><summary>All method steps</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
-        </section>
+          <section id="weighPanel" class="bake-card" aria-label="Weigh ingredients">
+            <div class="bake-card-heading">
+              <div><p class="eyebrow">01 · PREPARE</p><h2>Ingredients</h2></div>
+              <label for="weighLayout" class="layout-picker"><span class="sr-only">Weighing layout</span><select id="weighLayout"><option value="checklist">Checklist</option><option value="focus">One ingredient</option></select></label>
+            </div>
+            <div class="progress-line"><p id="weighedProgress" role="status" aria-live="polite"></p><progress id="weighedMeter" max="100" value="0" aria-label="Ingredients weighed"></progress></div>
+            <div id="weighList"></div><div id="focusIngredient" hidden></div>
+            <button id="continueMethod" class="primary wide" hidden>Continue to method →</button>
+            <p class="bake-note">Read-only weights. Tick each ingredient as you weigh it.</p>
+          </section>
+          <section id="methodPanel" class="bake-card" aria-label="Follow method" hidden>
+            <div class="bake-card-heading"><div><p class="eyebrow">02 · MAKE</p><h2>Method</h2></div></div>
+            <div class="progress-line"><p id="stepProgress" role="status" aria-live="polite"></p><progress id="methodMeter" max="100" value="0" aria-label="Method steps completed"></progress></div>
+            <div class="current-step"><h3 id="stepTitle" tabindex="-1"></h3><p id="stepInstructions" class="step-instructions"></p><p id="stepRest"></p></div>
+            <label id="stepCheck" class="check step-complete"><input id="stepDone" type="checkbox" /><span>Mark this step complete</span></label>
+            <div id="methodActions" class="bake-step-actions"><button id="previousStep">Previous step</button><button id="nextStep" class="primary">Next step</button></div>
+            <details id="methodPlan" open><summary>All method steps</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
+          </section>
         </div>
-        <p class="hint">Progress stays in this browser tab. Your formula and method stay unchanged. Save a bake result to keep a permanent record.</p>
-        <div class="bake-step-actions"><a id="editRecipe" class="button-link">Edit recipe</a><button id="newSession">Start a new bake</button></div>
+        <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Your original formula and method are kept with this bake. Progress stays in this browser tab; record a bake result to keep a permanent log.</p></details>
       </section>
-      <div class="bake-bottom"><a id="recordResult" class="button-link primary" hidden>Record bake result</a></div>
+      <div class="bake-bottom" hidden><div class="bake-bottom-inner"><p><strong>Keep a record of this bake</strong>Save your observations and what to try next time.</p><a id="recordResult" class="button-link primary" hidden>Record bake result <span aria-hidden="true">→</span></a></div></div>
     </main>
   </body>
 </html>

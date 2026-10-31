@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Bake log · Bread calculator</title>
+    <title>Bake log · Bread Bench</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/bakes.mjs"></script>
   </head>
   <body>
-    <main>
+    <main class="journal-page">
       <header class="app-header">
-        <h1>Bake log</h1>
+        <div class="page-heading"><a class="brand" href="/">Bread Bench</a><h1>Bake log</h1></div>
         <nav aria-label="Main navigation">
           <a href="/">Calculator</a><a href="/methods">Methods</a
           ><a href="/bakes" aria-current="page">Bake log</a>
@@ -20,7 +20,9 @@
         Record what you actually did and how the bread turned out. Each entry
         keeps its own recipe and method version.
       </p>
+      <nav class="section-nav" aria-label="Bake log sections"><a href="#bakeForm">Record a result</a><a href="#bakeResults">Browse bakes &amp; comparisons</a></nav>
       <div id="draftRecovery" class="draft-recovery" role="status" hidden></div>
+      <div class="journal-layout">
       <section class="panel" id="bakeForm">
         <div class="section-title">
           <h2 id="bakeHeading">Record a bake</h2>
@@ -93,24 +95,6 @@
               type="number"
               min="0.1"
               step="any" /></label
-          ><label
-            >Oven spring (1–5)<select id="spring">
-              <option value="">Not rated</option>
-              <option>1</option>
-              <option>2</option>
-              <option>3</option>
-              <option>4</option>
-              <option>5</option>
-            </select></label
-          ><label
-            >Sourness (1–5)<select id="sourness">
-              <option value="">Not rated</option>
-              <option value="1">1 — mild</option>
-              <option>2</option>
-              <option>3</option>
-              <option>4</option>
-              <option value="5">5 — very sour</option>
-            </select></label
           >
         </div>
         <p class="hint">
@@ -131,7 +115,7 @@
         <details class="optional-measurements">
           <summary>
             More measurements
-            <span class="hint">Rise, proof and oven stages</span>
+            <span class="hint">Ratings, rise, proof and oven stages</span>
           </summary>
           <p class="hint">
             Fill in only what you measured. No target values are assumed.
@@ -169,6 +153,27 @@
                 max="10080"
                 step="any"
             /></label>
+
+            <label>Oven spring (1–5)
+              <select id="spring">
+              <option value="">Not rated</option>
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+              <option>5</option>
+            </select></label
+          >
+            <label>Sourness (1–5)
+              <select id="sourness">
+              <option value="">Not rated</option>
+              <option value="1">1 — mild</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+              <option value="5">5 — very sour</option>
+            </select></label
+          >
           </div>
           <p class="hint">
             For separate proof times, enter both; use 0 for a stage you skipped.
@@ -195,7 +200,7 @@
         ><span class="state" id="bakeState"></span>
         <p id="status" role="status" aria-live="polite"></p>
       </section>
-      <section class="panel">
+      <section class="panel journal-results" id="bakeResults">
         <div class="section-title">
           <h2>Results</h2>
           <div class="inline">
@@ -265,6 +270,7 @@
         </details>
       </section>
 
+      </div>
     </main>
     <div class="mobile-actions" aria-label="Save actions"><span id="quickSaveState" role="status" aria-live="polite"></span><button id="quickSave" class="primary">Save bake result</button></div>
   </body>
