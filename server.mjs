@@ -13,7 +13,7 @@ import { validate, validateBlend } from "./public/math.mjs";
 import { validateMethod, InputError } from "./public/methods-model.mjs";
 import { validateBake } from "./public/bakes-model.mjs";
 
-import { syncMealie } from "./mealie.mjs";
+import { syncMealie, MealieError } from "./mealie.mjs";
 
 const dataDir = process.env.DATA_DIR || "./data";
 const staticDir = fileURLToPath(new URL("./public/", import.meta.url));
@@ -263,10 +263,11 @@ export function createServer() {
         /^(Enter |Use |A recipe|Recipe is too large|Unsupported |Flour |Whole wheat|Starter hydration)/.test(
           error.message,
         );
-      send(client ? 400 : 500, {
-        error: client
-          ? error.message
-          : "Request failed. Your saved recipes have been retained. A Mealie timeout may still have created a recipe; check Mealie before retrying.",
+      send(client ? 400 : error instanceof MealieError ? 502 : 500, {
+        error:
+          client || error instanceof MealieError
+            ? error.message
+            : "Request failed. Your saved recipes have been retained. A Mealie timeout may still have created a recipe; check Mealie before retrying.",
       });
     }
   });
