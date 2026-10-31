@@ -23,6 +23,7 @@ jobs:
           curl -fsS http://127.0.0.1:8078/ | grep -q 'Bread calculator'
           curl -fsS http://127.0.0.1:8078/methods | grep -q 'Method steps'
           curl -fsS http://127.0.0.1:8078/bakes | grep -q 'Record a bake'
+          curl -fsS http://127.0.0.1:8078/bake | grep -q 'Weigh ingredients'
           docker exec bread-check node -e "fetch('http://127.0.0.1:8080/api/recipes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recipe:{name:'CI dough'}})}).then(r=>{if(!r.ok)process.exit(1)})"
           docker exec -i bread-check node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
