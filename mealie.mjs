@@ -165,7 +165,10 @@ export async function syncMealie(record, persist) {
     c = calculate(record.recipe);
   const patch = {
     name: record.recipe.name,
-    recipeCategory: hasBreadCategory ? categories : [...categories, breadCategory],
+    // Organizer responses can contain groupId: null. PATCH would assign that
+    // null to the existing category and violate Mealie's group foreign key.
+    recipeCategory: (hasBreadCategory ? categories : [...categories, breadCategory])
+      .map(({ id, name, slug }) => ({ id, name, slug })),
     description: schema.description,
     recipeServings: record.recipe.portions,
     recipeYieldQuantity: record.recipe.portions,

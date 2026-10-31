@@ -31,7 +31,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     if (url.pathname === "/api/organizers/categories/slug/bread")
       return send(
         categoryAvailable ? 200 : 404,
-        categoryAvailable ? breadCategory : {},
+        // Installed organizer GET includes groupId: null. Echoing it in PATCH
+        // clears the existing category's non-null group FK and fails integrity.
+        categoryAvailable ? { ...breadCategory, groupId: null, recipes: [] } : {},
       );
     if (url.pathname === "/api/recipes" && req.method === "GET")
       return send(200, {
@@ -78,6 +80,8 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
         return send(500, {
           error: "RecipeInstruction requires ingredient_references",
         });
+      if (value.recipeCategory.some((category) => category.groupId === null))
+        return send(400, { detail: { message: "Recipe already exists" } });
       if (failPatch) {
         failPatch = false;
         return send(500, {});
