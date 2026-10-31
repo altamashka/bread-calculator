@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { schemaRecipe, validate, calculate } from "./public/math.mjs";
 import { InputError } from "./public/methods-model.mjs";
+export class MealieError extends Error {}
 export const recipeHash = (recipe) =>
   createHash("sha256")
     .update(JSON.stringify(validate(recipe)))
@@ -26,7 +27,7 @@ export async function syncMealie(record, persist) {
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
     if (!response.ok) {
-      const error = new Error(
+      const error = new MealieError(
         `Mealie returned HTTP ${response.status}. Your calculator copy is saved.`,
       );
       error.upstreamStatus = response.status;
@@ -54,6 +55,20 @@ export async function syncMealie(record, persist) {
     record.mealieSlug = remote.slug;
     record.mealieRecipeId = remote.id;
   }
+  // Resolve the existing organizer before any recipe write. Ben owns category creation.
+  let breadCategory;
+  try {
+    breadCategory = await request("/api/organizers/categories/slug/bread");
+  } catch (e) {
+    if (e.upstreamStatus !== 404) throw e;
+    throw new InputError(
+      'Create the "Bread" category in Mealie before saving there. Your calculator copy is saved.',
+    );
+  }
+  if (!breadCategory.id || breadCategory.slug !== "bread")
+    throw new MealieError(
+      "Mealie returned an invalid Bread category. Your calculator copy is saved.",
+    );
   const hash = recipeHash(record.recipe);
   let remote;
   if (record.mealieSlug) {
@@ -133,7 +148,9 @@ export async function syncMealie(record, persist) {
     await persist(record);
   }
   link(remote);
-  if (record.mealieHash === hash) {
+  const categories = remote.recipeCategory ?? [],
+    hasBreadCategory = categories.some((c) => c.id === breadCategory.id);
+  if (record.mealieHash === hash && hasBreadCategory) {
     await persist(record);
     return { ok: true, changed: false };
   }
@@ -148,6 +165,7 @@ export async function syncMealie(record, persist) {
     c = calculate(record.recipe);
   const patch = {
     name: record.recipe.name,
+    recipeCategory: hasBreadCategory ? categories : [...categories, breadCategory],
     description: schema.description,
     recipeServings: record.recipe.portions,
     recipeYieldQuantity: record.recipe.portions,
@@ -162,6 +180,8 @@ export async function syncMealie(record, persist) {
       title: s.name ?? "",
       summary: s.name ?? "",
       text: s.text,
+      // Mealie 3.10 PATCH omits unset schema defaults before constructing steps.
+      ingredientReferences: [],
     })),
     extras: {
       ...(remote.extras ?? {}),
