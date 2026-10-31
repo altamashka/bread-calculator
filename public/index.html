@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#f5f1e8" />
+    <meta name="theme-color" content="#f4f3ee" />
     <title>Bread calculator</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.mjs"></script>
     <script type="module" src="/temperature.mjs"></script>
   </head>
   <body>
-    <main>
+    <main class="calculator-page">
       <header class="app-header">
-        <h1>Bread calculator</h1>
+        <div class="page-heading"><a class="brand" href="/">Bread Bench</a><h1>Calculator</h1></div>
         <nav aria-label="Main navigation">
           <a href="/" aria-current="page">Calculator</a
           ><a href="/methods">Methods</a><a href="/bakes">Bake log</a>
@@ -55,19 +55,6 @@
             </p>
           </div>
           <p id="flourSummary" class="flour-summary" aria-live="polite"></p>
-          <p id="validation" class="validation" role="alert" hidden></p>
-          <div class="table-head" aria-hidden="true">
-            <span>Ingredient</span><span>% of flour</span><span>Weight</span>
-          </div>
-          <div id="ingredients"></div>
-          <details id="extraDetails">
-            <summary>Other ingredients <span id="extraCount"></span></summary>
-            <p class="hint">
-              Zero leaves an ingredient out. Every row shows % of added flour
-              and grams.
-            </p>
-            <div id="extras"></div>
-          </details>
           <details>
             <summary>Flour blend and starter hydration</summary>
             <p class="hint">
@@ -95,8 +82,8 @@
             <label>Saved flour blend<select id="blendSelect"><option value="">Choose a blend…</option></select></label>
             <button id="applyBlend" type="button">Apply selected blend</button>
             <label>Blend name<input id="blendName" maxlength="120" /></label>
-            <button id="saveBlend" type="button">Save current blend as new</button>
-            <button id="updateBlend" type="button">Update selected blend</button>
+            <div class="blend-actions"><button id="saveBlend" type="button">Save as new blend</button>
+            <button id="updateBlend" type="button">Update selected blend</button></div>
             <p class="hint">White flour is the remainder. Applying copies the percentages into this draft. Saving a blend does not save the recipe or change earlier recipes and bakes.</p>
             <label
               >Starter hydration (%)<input
@@ -111,6 +98,20 @@
               flour as water.
             </p>
           </details>
+          <p id="validation" class="validation" role="alert" hidden></p>
+          <div class="table-head" aria-hidden="true">
+            <span>Ingredient</span><span>% of flour</span><span>Weight</span>
+          </div>
+          <div id="ingredients"></div>
+          <details id="extraDetails">
+            <summary>Other ingredients <span id="extraCount"></span></summary>
+            <p class="hint">
+              Zero leaves an ingredient out. Every row shows % of added flour
+              and grams.
+            </p>
+            <div id="extras"></div>
+          </details>
+
           <section class="method-choice">
             <div class="section-title">
               <label for="methodSelect">Method</label
@@ -229,8 +230,10 @@
               Recipes stay editable here. When selected, Mealie receives the
               ingredients and method; later saves update that same recipe.
             </p>
+            <div class="recipe-actions">
             <a id="startBake" class="button-link" href="/bake">Bake with this recipe</a>
             <a id="logBake" class="button-link" href="/bakes">Record a bake</a>
+            </div>
             <p id="bakeHint" class="hint"></p>
             <details>
               <summary>Duplicate, share and backup</summary>
