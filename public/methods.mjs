@@ -1,3 +1,4 @@
+import { draftRecovery } from "./drafts.mjs";
 import { validateMethod, timeline, duration } from "./methods-model.mjs";
 import {
   $,
@@ -19,6 +20,24 @@ let method = {
   dirty = false,
   removed = null,
   busy = false;
+const recovery = draftRecovery({
+  key: "bread-method-draft", element: $("draftRecovery"), isDirty: () => dirty,
+  capture: () => ({ method, savedId, baseline, startAt: $("startAt").value, dirty }),
+  restore(value) {
+    const next = value.method;
+    if (!next || typeof next.name !== "string" || !Array.isArray(next.steps) || next.steps.length > 40 ||
+        next.steps.some((s) => !s || typeof s.title !== "string" || typeof s.instructions !== "string" ||
+          !(s.restMinutes === null || typeof s.restMinutes === "number"))) throw Error("Invalid draft");
+    method = structuredClone(next);
+    savedId = records.some((r) => r.id === value.savedId) ? value.savedId : null;
+    baseline = value.baseline ?? null;
+    $("startAt").value = value.startAt ?? "";
+    $("savedMethod").value = savedId ?? "";
+    renderSteps();
+    notice("Method draft restored. Save to keep it on the server.");
+    $("methodName").focus();
+  },
+});
 function update() {
   dirty = !same(method, baseline);
   $("methodState").textContent = savedId
@@ -30,6 +49,10 @@ function update() {
   $("saveMethod").disabled = busy;
   $("savedMethod").disabled = busy;
   $("newMethod").disabled = busy;
+  $("quickSave").disabled = busy;
+  $("quickSave").textContent = busy ? "Saving…" : "Save method";
+  $("quickSaveState").textContent = dirty ? "Unsaved changes" : savedId ? "Saved here" : "Not saved";
+  recovery.track();
   $("schedule").replaceChildren();
   try {
     const rows = timeline(method),
@@ -132,7 +155,7 @@ function renderSteps() {
         input.max = "10080";
         input.step = "any";
       } else input.maxLength = key === "title" ? 120 : 2000;
-      input.value = s[key];
+      input.value = s[key] ?? "";
       if (key === "title")
         input.placeholder = "e.g. Autolyse or Stretch and fold";
       input.addEventListener("input", () => {
@@ -265,8 +288,9 @@ $("importMethod").addEventListener("change", async () => {
     $("importMethod").value = "";
   }
 });
+$("quickSave").addEventListener("click", () => $("saveMethod").click());
 guardUnload(() => dirty);
 renderSteps();
 refresh()
-  .then(update)
+  .then(() => { update(); recovery.start(); })
   .catch((e) => notice(e.message, true));

@@ -34,7 +34,8 @@ let recipe = defaults(),
   dirty = false,
   ready = false,
   busy = false,
-  mealie = false;
+  mealie = false,
+  syncState = null;
 const initialQuery = new URLSearchParams(location.search),
   requestedId = initialQuery.get("recipeId"),
   formulaLink = [...initialQuery.keys()].some(
@@ -50,6 +51,7 @@ let draftBaseline = structuredClone(recipe);
 const current = () => records.find((r) => r.id === savedId);
 function status(text, error = false) {
   notice(text, error);
+  if (ready) savedState();
 }
 try {
   recipe = location.search ? fromQuery(location.search) : defaults();
@@ -77,6 +79,22 @@ function savedState() {
     : savedId
       ? "Save changes"
       : "Save recipe";
+  const syncText = !savedId ? "Save here first"
+    : busy ? "Saving…"
+    : dirty ? "Unsaved changes"
+    : !mealie ? "Saved here · Mealie unavailable"
+    : syncState?.unavailable ? "Saved here · sync status unavailable"
+    : syncState?.synced ? "Saved here · Mealie synced"
+    : syncState ? "Saved here · Mealie not synced"
+    : "Saved here · checking Mealie";
+  $("syncStatus").textContent = syncText;
+  $("quickSaveState").textContent = syncText;
+  $("quickSave").disabled = $("save").disabled;
+  $("quickSave").textContent = $("save").textContent;
+  for (const id of ["startBake", "quickBake"]) {
+    $(id).href = savedId ? `/bake?recipeId=${encodeURIComponent(savedId)}` : "/bake";
+    $(id).setAttribute("aria-disabled", String(!savedId || dirty || busy));
+  }
   $("saveMealie").disabled = !mealie || busy;
   $("saved").disabled = !ready || busy;
   $("reset").disabled = busy;
@@ -198,6 +216,7 @@ function render(active) {
       `Starter: ${g(c.starterFlour)} flour + ${g(c.starterWater)} water.`;
     $("blend").textContent =
       `Added flour: ${g((recipe.flour * (100 - recipe.wholeWheat - recipe.rye)) / 100)} white · ${g((recipe.flour * recipe.wholeWheat) / 100)} whole wheat · ${g((recipe.flour * recipe.rye) / 100)} rye.`;
+    $("flourSummary").textContent = $("blend").textContent;
     $("liquidRow").hidden = !recipe.milk;
     const count = Object.keys(ingredients).filter(
       (k) => !["water", "salt", "leaven"].includes(k) && recipe[k] > 0,
@@ -226,6 +245,7 @@ function render(active) {
       $(k).textContent = "—";
     $("starterSplit").textContent = "";
     $("blend").textContent = "";
+    $("flourSummary").textContent = "";
   }
   savedState();
   if (ready && valid)
@@ -253,6 +273,18 @@ for (const key of Object.keys(defaults()))
       render(key);
     });
 $("saveMealie").addEventListener("change", () => render());
+async function refreshSync() {
+  const id = savedId;
+  syncState = null;
+  savedState();
+  if (mealie && id) {
+    try {
+      const result = await api(`/api/mealie/status?id=${encodeURIComponent(id)}`);
+      if (savedId === id) syncState = result;
+    } catch { if (savedId === id) syncState = { unavailable: true }; }
+  }
+  savedState();
+}
 async function refresh() {
   records = await api("/api/recipes");
   $("saved").replaceChildren(new Option("Choose a saved recipe…", ""));
@@ -260,6 +292,7 @@ async function refresh() {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .forEach((r) => $("saved").add(new Option(r.recipe.name, r.id)));
   $("saved").value = savedId ?? "";
+  if (ready) await refreshSync();
 }
 async function refreshMethods() {
   methods = await api("/api/methods");
@@ -337,40 +370,32 @@ $("exportMethod").addEventListener("change", () => {
   );
 });
 async function save() {
-  validate(recipe);
-  const includeMealie = mealie && $("saveMealie").checked;
-  if (includeMealie) {
-    await refreshMethods();
-    if (!(await chooseMethodForMealie())) return;
-  }
-  const snapshot = validate(recipe);
+  if (busy) return;
   busy = true;
   savedState();
-  let localSaved = false;
+  let localSaved = false, includeMealie = false;
   try {
+    validate(recipe);
+    includeMealie = mealie && $("saveMealie").checked;
+    if (includeMealie) {
+      await refreshMethods();
+      if (!(await chooseMethodForMealie())) return;
+    }
+    const snapshot = validate(recipe);
     const record = await post("/api/recipes", {
-      id: savedId ?? undefined,
-      recipe: snapshot,
-      mealieEnabled: includeMealie,
+      id: savedId ?? undefined, recipe: snapshot, mealieEnabled: includeMealie,
     });
     savedId = record.id;
     localSaved = true;
     if (includeMealie) await post("/api/mealie", { id: savedId });
     await refresh();
     render();
-    status(
-      dirty
-        ? "Saved the previous values. Your latest edits are not saved yet."
-        : includeMealie
-          ? "Saved here and in Mealie."
-          : "Saved in this calculator.",
-    );
+    status(dirty
+      ? "Saved the previous values. Your latest edits are not saved yet."
+      : includeMealie ? "Saved here and in Mealie." : "Saved in this calculator.");
   } catch (e) {
     await refresh().catch(() => {});
-    status(
-      `${localSaved ? "Saved here. Mealie could not be updated: " : ""}${e.message}`,
-      true,
-    );
+    status(`${localSaved ? "Saved here. Mealie could not be updated: " : ""}${e.message}`, true);
   } finally {
     busy = false;
     render();
@@ -386,6 +411,14 @@ function action(id, fn) {
   });
 }
 action("save", save);
+action("quickSave", save);
+for (const id of ["startBake", "quickBake"])
+  $(id).addEventListener("click", (event) => {
+    if (!savedId || dirty || busy) {
+      event.preventDefault();
+      status("Save this recipe before starting a bake.", true);
+    }
+  });
 action("reset", () => {
   if (!guard(dirty)) return;
   recipe = { ...defaults(), name: "New bread recipe" };
@@ -423,6 +456,7 @@ $("saved").addEventListener("change", () => {
   $("saveMealie").checked = r.mealieEnabled ?? !!r.mealieExportedAt;
   fill();
   status("Recipe opened.");
+  refreshSync();
 });
 $("methodSelect").addEventListener("change", () => {
   const r = methods.find((r) => r.id === $("methodSelect").value);
@@ -530,7 +564,7 @@ document.addEventListener("click", (event) => {
 guardUnload(() => ready && dirty && !internalNavigation);
 fill();
 Promise.all([refresh(), refreshMethods(), api("/api/config"), refreshBlends()])
-  .then(([, , c]) => {
+  .then(async ([, , c]) => {
     mealie = c.mealie;
     ready = true;
     const explicit = records.find((r) => r.id === requestedId),
@@ -567,6 +601,7 @@ Promise.all([refresh(), refreshMethods(), api("/api/config"), refreshBlends()])
     }
     fill();
     $("saved").value = savedId ?? "";
+    await refreshSync();
     if (!mealie)
       $("mealieHint").textContent =
         "Mealie is unavailable. You can still save and edit recipes here.";

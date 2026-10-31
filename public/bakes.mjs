@@ -1,3 +1,5 @@
+import { draftRecovery, readDraft } from "./drafts.mjs";
+import { bakeSessionKey, validateBakeSession } from "./bake-mode-model.mjs";
 import { validate, calculate, schemaRecipe } from "./math.mjs";
 import { validateBake, compareMethods } from "./bakes-model.mjs";
 import { methodSnapshot, methodKey, duration } from "./methods-model.mjs";
@@ -39,6 +41,32 @@ const numbers = [
 ];
 const fmt = (n) =>
   n === null ? "—" : Number(n.toFixed(1)).toLocaleString("en-GB");
+const recovery = draftRecovery({
+  key: "bread-bake-draft", element: $("draftRecovery"), isDirty: () => dirty,
+  capture: () => ({ form: formValue(), baseline, savedId, dirty }),
+  restore(value) {
+    const b = value.form;
+    if (!b || typeof b.observations !== "string" || typeof b.nextTime !== "string") throw Error("Invalid draft");
+    const snapshot = b.recipe ? validate(b.recipe) : null;
+    if (!Array.isArray(b.stepResults) || !Array.isArray(b.ovenStages) || b.ovenStages.length > 12 ||
+        b.stepResults.length > (snapshot?.method?.steps.length ?? 0) ||
+        [...b.stepResults, ...b.ovenStages].some((row) => !row || typeof row !== "object" || Array.isArray(row))) throw Error("Invalid draft");
+    selectedRecipe = snapshot; selectedMethod = snapshot?.method ?? null;
+    savedId = records.some((r) => r.id === value.savedId) ? value.savedId : null;
+    $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
+    if (snapshot) {
+      $("bakeRecipe").add(new Option(`${snapshot.name} (draft formula)`, "snapshot"));
+      $("bakeRecipe").value = "snapshot";
+    } else $("bakeRecipe").value = "";
+    $("bakeDate").value = b.date ?? "";
+    for (const k of [...numbers, "observations", "nextTime"]) $(k).value = b[k] ?? "";
+    methodOptions(); renderMeasurements(b);
+    baseline = value.baseline ?? {};
+    $("bakeHeading").textContent = savedId ? "Edit bake result" : "Record a bake";
+    update(); notice("Bake draft restored. Save to keep it on the server.");
+    $("observations").focus();
+  },
+});
 function formValue() {
   return {
     date: $("bakeDate").value,
@@ -85,6 +113,10 @@ function update() {
     : savedId
       ? "Save changes"
       : "Save bake result";
+  $("quickSave").disabled = $("saveBake").disabled;
+  $("quickSave").textContent = $("saveBake").textContent;
+  $("quickSaveState").textContent = dirty ? "Unsaved changes" : savedId ? "Saved here" : "Not saved";
+  recovery.track();
   $("bakeRecipe").disabled = busy;
   $("newBake").disabled = busy;
   if (selectedRecipe) {
@@ -522,6 +554,7 @@ $("addOvenStage").addEventListener("click", () => {
   update();
 });
 
+$("quickSave").addEventListener("click", () => $("saveBake").click());
 guardUnload(() => dirty);
 clear();
 Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
@@ -539,7 +572,24 @@ Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
       methodOptions();
       renderMeasurements();
     }
+    const query = new URLSearchParams(location.search);
+    if (query.get("fromBake") === "1") {
+      const stored = readDraft(bakeSessionKey(requested));
+      try {
+        const session = validateBakeSession(stored);
+        if (session.recipeId !== requested) throw Error("Wrong snapshot");
+        selectedRecipe = session.recipe; selectedMethod = session.recipe.method;
+        $("bakeRecipe").add(new Option(`${session.recipe.name} (baking snapshot)`, "snapshot"));
+        $("bakeRecipe").value = "snapshot";
+        methodOptions(); renderMeasurements();
+        notice("Baking snapshot loaded. Your original formula and method are retained.");
+      } catch {
+        selectedRecipe = null; selectedMethod = null; $("bakeRecipe").value = "";
+        methodOptions(); renderMeasurements();
+        notice("The baking snapshot is unavailable. Choose the recipe and method you actually used before saving.", true);
+      }
+    }
     baseline = formValue();
-    update();
+    update(); recovery.start();
   })
   .catch((e) => notice(e.message, true));
