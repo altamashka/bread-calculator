@@ -20,75 +20,7 @@
         Record what you actually did and how the bread turned out. Each entry
         keeps its own recipe and method version.
       </p>
-      <section class="panel">
-        <div class="section-title">
-          <h2>Results</h2>
-          <div class="inline">
-            <button id="csv">Export filtered CSV</button
-            ><button id="backup">Download full backup</button>
-          </div>
-        </div>
-        <div class="two">
-          <label
-            >Filter by recipe<select id="filterRecipe">
-              <option value="">All recipes</option>
-            </select></label
-          ><label
-            >Filter by method version<select id="filterMethod">
-              <option value="">All methods</option>
-            </select></label
-          >
-        </div>
-        <p id="logSummary" class="hint"></p>
-        <div
-          class="table-scroll bake-results"
-          tabindex="0"
-          aria-label="Bake results"
-        >
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Recipe</th>
-                <th>Method</th>
-                <th>Hydration</th>
-                <th>Result</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="logRows"></tbody>
-          </table>
-        </div>
-        <p id="emptyLog">No bakes recorded yet. Add your first result below.</p>
-        <details>
-          <summary>Compare method versions</summary>
-          <div
-            class="table-scroll"
-            tabindex="0"
-            aria-label="Method comparisons"
-          >
-            <table>
-              <thead>
-                <tr>
-                  <th>Method</th>
-                  <th>Bakes</th>
-                  <th>Average result</th>
-                  <th>Hydration range</th>
-                  <th>Average dough °C</th>
-                  <th>Average bulk</th>
-                </tr>
-              </thead>
-              <tbody id="comparisonRows"></tbody>
-            </table>
-          </div>
-          <p class="hint">
-            Ratings are your own 1–5 scores. Blank measurements are excluded
-            from averages. Small samples and different recipes or temperatures
-            can make comparisons misleading; try changing one variable at a
-            time.
-          </p>
-        </details>
-      </section>
+      <div id="draftRecovery" class="draft-recovery" role="status" hidden></div>
       <section class="panel" id="bakeForm">
         <div class="section-title">
           <h2 id="bakeHeading">Record a bake</h2>
@@ -186,6 +118,16 @@
           autolyse without starter is separate. Use minutes for the whole
           period, e.g. 720 for 12 hours.
         </p>
+        <label for="observations">Observations</label
+        ><textarea
+          id="observations"
+          rows="4"
+          maxlength="4000"
+          placeholder="Crumb, rise, flavour, shaping, starter condition, flour brand, signs of fermentation…"
+        ></textarea
+        ><label for="nextTime">What to change next time</label
+        ><textarea id="nextTime" rows="2" maxlength="4000"></textarea>
+
         <details class="optional-measurements">
           <summary>
             More measurements
@@ -249,19 +191,81 @@
           </p>
           <div id="stepResults"></div>
         </details>
-        <label for="observations">Observations</label
-        ><textarea
-          id="observations"
-          rows="4"
-          maxlength="4000"
-          placeholder="Crumb, rise, flavour, shaping, starter condition, flour brand, signs of fermentation…"
-        ></textarea
-        ><label for="nextTime">What to change next time</label
-        ><textarea id="nextTime" rows="2" maxlength="4000"></textarea
-        ><button class="primary" id="saveBake">Save bake result</button
+        <button class="primary" id="saveBake">Save bake result</button
         ><span class="state" id="bakeState"></span>
         <p id="status" role="status" aria-live="polite"></p>
       </section>
+      <section class="panel">
+        <div class="section-title">
+          <h2>Results</h2>
+          <div class="inline">
+            <button id="csv">Export filtered CSV</button
+            ><button id="backup">Download full backup</button>
+          </div>
+        </div>
+        <div class="two">
+          <label
+            >Filter by recipe<select id="filterRecipe">
+              <option value="">All recipes</option>
+            </select></label
+          ><label
+            >Filter by method version<select id="filterMethod">
+              <option value="">All methods</option>
+            </select></label
+          >
+        </div>
+        <p id="logSummary" class="hint"></p>
+        <div
+          class="table-scroll bake-results"
+          tabindex="0"
+          aria-label="Bake results"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Recipe</th>
+                <th>Method</th>
+                <th>Hydration</th>
+                <th>Result</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="logRows"></tbody>
+          </table>
+        </div>
+        <p id="emptyLog">No bakes recorded yet. Add your first result below.</p>
+        <details>
+          <summary>Compare method versions</summary>
+          <div
+            class="table-scroll"
+            tabindex="0"
+            aria-label="Method comparisons"
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>Method</th>
+                  <th>Bakes</th>
+                  <th>Average result</th>
+                  <th>Hydration range</th>
+                  <th>Average dough °C</th>
+                  <th>Average bulk</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonRows"></tbody>
+            </table>
+          </div>
+          <p class="hint">
+            Ratings are your own 1–5 scores. Blank measurements are excluded
+            from averages. Small samples and different recipes or temperatures
+            can make comparisons misleading; try changing one variable at a
+            time.
+          </p>
+        </details>
+      </section>
+
     </main>
+    <div class="mobile-actions" aria-label="Save actions"><span id="quickSaveState" role="status" aria-live="polite"></span><button id="quickSave" class="primary">Save bake result</button></div>
   </body>
 </html>

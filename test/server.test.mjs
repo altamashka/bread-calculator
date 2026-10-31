@@ -123,7 +123,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
         body: JSON.stringify(value),
       }),
     get = async (path) => (await fetch(base + path)).json();
-  for (const path of ["/", "/methods", "/bakes", "/healthz"])
+  for (const path of ["/", "/methods", "/bakes", "/bake", "/bake-mode.mjs", "/bake-mode-model.mjs", "/drafts.mjs", "/healthz"])
     assert.equal((await fetch(base + path)).status, 200);
   assert.equal(
     (await post("/api/recipes", { recipe: { flour: 0 } })).status,
@@ -181,6 +181,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     })
   ).json();
   assert.ok(saved.id);
+  assert.equal((await fetch(base + "/api/mealie/status?id=invalid")).status, 400);
+  assert.equal((await fetch(base + "/api/mealie/status?id=" + randomUUID())).status, 404);
+  assert.equal((await get("/api/mealie/status?id=" + saved.id)).synced, false);
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 503);
   process.env.MEALIE_URL = `http://127.0.0.1:${mock.address().port}`;
   process.env.MEALIE_TOKEN = "test-token";
@@ -188,6 +191,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.equal(creates, 1);
   const linked = (await get("/api/recipes"))[0];
   assert.ok(linked.mealieSlug);
+  assert.equal((await get("/api/mealie/status?id=" + saved.id)).synced, true);
   assert.equal(linked.mealieRecipeId, [...remote.values()][0].id);
   assert.equal([...remote.values()][0].recipeInstructions[0].title, "Autolyse");
   assert.deepEqual(
@@ -235,6 +239,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     recipe: changed,
     mealieEnabled: true,
   });
+  const unsynced = await get("/api/mealie/status?id=" + saved.id);
+  assert.equal(unsynced.synced, false);
+  assert.ok(unsynced.exportedAt);
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
   assert.equal(patches, 3);

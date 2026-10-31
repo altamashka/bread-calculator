@@ -13,7 +13,7 @@ import { validate, validateBlend } from "./public/math.mjs";
 import { validateMethod, InputError } from "./public/methods-model.mjs";
 import { validateBake } from "./public/bakes-model.mjs";
 
-import { syncMealie, MealieError } from "./mealie.mjs";
+import { syncMealie, MealieError, recipeHash } from "./mealie.mjs";
 
 const dataDir = process.env.DATA_DIR || "./data";
 const staticDir = fileURLToPath(new URL("./public/", import.meta.url));
@@ -29,6 +29,10 @@ const files = {
   "/methods-model.mjs": ["methods-model.mjs", "text/javascript"],
   "/bakes.mjs": ["bakes.mjs", "text/javascript"],
   "/bakes-model.mjs": ["bakes-model.mjs", "text/javascript"],
+  "/bake": ["bake-mode.html", "text/html; charset=utf-8"],
+  "/bake-mode.mjs": ["bake-mode.mjs", "text/javascript"],
+  "/bake-mode-model.mjs": ["bake-mode-model.mjs", "text/javascript"],
+  "/drafts.mjs": ["drafts.mjs", "text/javascript"],
   "/ui.mjs": ["ui.mjs", "text/javascript"],
 };
 const idPattern =
@@ -220,6 +224,18 @@ export function createServer() {
         } finally {
           pending.delete(id);
         }
+      }
+      if (path === "/api/mealie/status" && req.method === "GET") {
+        const id = new URL(req.url, "http://localhost").searchParams.get("id");
+        if (!idPattern.test(id ?? "")) return send(400, { error: "Choose a saved recipe." });
+        let record;
+        try { record = JSON.parse(await readFile(`${dataDir}/${id}.json`, "utf8")); }
+        catch (e) { if (e.code === "ENOENT") return send(404, { error: "Recipe not found." }); throw e; }
+        return send(200, {
+          synced: record.mealieHash === recipeHash(record.recipe),
+          exportedAt: record.mealieExportedAt ?? null,
+          pending: !!record.mealiePendingCreate,
+        });
       }
       if (path === "/api/mealie" && req.method === "POST") {
         if (!process.env.MEALIE_URL || !process.env.MEALIE_TOKEN)
