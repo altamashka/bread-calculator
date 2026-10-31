@@ -141,31 +141,29 @@ export function toQuery(r) {
   ).toString();
 }
 const g = (n) => `${Number(n.toFixed(1))} g`;
+export function weighedIngredients(input) {
+  const r = validate(input), c = calculate(r);
+  return [
+    { name: "white flour", grams: r.flour * (100 - r.wholeWheat - r.rye) / 100, note: "" },
+    { name: "whole wheat flour", grams: r.flour * r.wholeWheat / 100, note: "" },
+    { name: "rye flour", grams: r.flour * r.rye / 100, note: "" },
+    ...Object.entries(c.grams).map(([key, grams]) => ({
+      name: ingredients[key], grams,
+      note: key === "leaven" ? `(${r.starterHydration}% hydration)` : "",
+    })),
+  ].filter((row) => row.grams > 0);
+}
 export function schemaRecipe(input) {
-  const r = validate(input),
-    c = calculate(r);
-  const flours = [
-    `${g((r.flour * (100 - r.wholeWheat - r.rye)) / 100)} white flour`,
-    ...(r.wholeWheat
-      ? [`${g((r.flour * r.wholeWheat) / 100)} whole wheat flour`]
-      : []),
-    ...(r.rye ? [`${g((r.flour * r.rye) / 100)} rye flour`] : []),
-  ].filter((s) => !s.startsWith("0 g"));
+  const r = validate(input), c = calculate(r);
   return {
     "@context": "https://schema.org",
     "@type": "Recipe",
     name: r.name,
     recipeYield: `${r.portions} dough portions of ${g(c.portion)} before baking`,
     description: `${c.hydration.toFixed(2)}% water hydration including starter; ${g(c.dough)} dough; ${r.portions} pieces of ${g(c.portion)} before baking. Percentages use added flour. Starter hydration ${r.starterHydration}%. Milk counted separately: ${c.liquidHydration.toFixed(2)}% liquid hydration.${r.method ? ` Method: ${r.method.name}.${r.notes.trim() ? ` Recipe notes: ${r.notes}` : ""}` : ""}`,
-    recipeIngredient: [
-      ...flours,
-      ...Object.entries(c.grams)
-        .filter(([, v]) => v > 0)
-        .map(
-          ([k, v]) =>
-            `${g(v)} ${ingredients[k]}${k === "leaven" ? ` (${r.starterHydration}% hydration)` : ""}`,
-        ),
-    ],
+    recipeIngredient: weighedIngredients(r).map(
+      ({ name, grams, note }) => `${g(grams)} ${name}${note ? ` ${note}` : ""}`,
+    ),
     recipeInstructions: r.method
       ? r.method.steps.map((s) => ({
           "@type": "HowToStep",

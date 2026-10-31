@@ -12,6 +12,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const remote = new Map();
+  const libraries = { foods: new Map(), units: new Map() };
+  const gram = { id: randomUUID(), name: "gram", fraction: false, abbreviation: "g" };
+  libraries.units.set(gram.id, gram);
   const breadCategory = { id: randomUUID(), name: "Bread", slug: "bread" },
     otherCategory = { id: randomUUID(), name: "Baking", slug: "baking" };
   let categoryAvailable = true;
@@ -28,6 +31,15 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (["/api/foods", "/api/units"].includes(url.pathname)) {
+      const library = libraries[url.pathname.slice(5)];
+      if (req.method === "GET") return send(200, { items: [...library.values()], total: library.size });
+      if (req.method === "POST") {
+        const item = { ...value, id: randomUUID() };
+        library.set(item.id, item);
+        return send(201, item);
+      }
+    }
     if (url.pathname === "/api/organizers/categories/slug/bread")
       return send(
         categoryAvailable ? 200 : 404,
@@ -82,6 +94,9 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
         });
       if (value.recipeCategory.some((category) => category.groupId === null))
         return send(400, { detail: { message: "Recipe already exists" } });
+      if (value.recipeIngredient.some((i) =>
+        !(i.quantity > 0) || !libraries.units.has(i.unit?.id) || !libraries.foods.has(i.food?.id)))
+        return send(422, { detail: "Structured gram and food references required" });
       if (failPatch) {
         failPatch = false;
         return send(500, {});
@@ -187,7 +202,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.deepEqual([...remote.values()][0].recipeCategory, [
     otherCategory, breadCategory,
   ]);
-  const flourNotes = [...remote.values()][0].recipeIngredient.map((i) => i.note);
+  const flourNotes = [...remote.values()][0].recipeIngredient.map((i) => i.originalText);
   for (const note of [
     "700 g white flour", "200 g whole wheat flour", "100 g rye flour",
   ])
@@ -198,6 +213,15 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
   assert.equal(patches, 1);
+  assert.equal(libraries.units.size, 1);
+  const waterRow = [...remote.values()][0].recipeIngredient.find((i) => i.food.name === "Water");
+  assert.equal(waterRow.quantity, 750);
+  assert.equal(waterRow.note, "");
+  assert.equal(waterRow.unit.id, gram.id);
+  const starterRow = [...remote.values()][0].recipeIngredient.find((i) => i.food.name.includes("starter"));
+  assert.equal(starterRow.note, "(50% hydration)");
+  assert.equal(starterRow.quantity, 200);
+  const foodsBefore = libraries.foods.size;
   // A previously synced formula still regains Bread if removed in Mealie.
   [...remote.values()][0].recipeCategory = [otherCategory];
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
@@ -214,9 +238,10 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.equal((await post("/api/mealie", { id: saved.id })).status, 200);
   assert.equal(creates, 1);
   assert.equal(patches, 3);
+  assert.equal(libraries.foods.size, foodsBefore);
   assert.ok(
     [...remote.values()][0].recipeIngredient.some(
-      (i) => i.note === "700 g Water",
+      (i) => i.originalText === "700 g Water",
     ),
   );
   await post("/api/methods", {
@@ -286,7 +311,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     "legacy",
   );
   assert.ok(
-    remote.get("legacy").recipeIngredient.some((i) => i.note === "720 g Water"),
+    remote.get("legacy").recipeIngredient.some((i) => i.originalText === "720 g Water"),
   );
   assert.deepEqual(remote.get("legacy").recipeCategory, [breadCategory]);
   const wholegrain = await (
@@ -295,7 +320,7 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     })
   ).json();
   assert.equal((await post("/api/mealie", { id: wholegrain.id })).status, 200);
-  const notes = [...remote.values()].at(-1).recipeIngredient.map((i) => i.note);
+  const notes = [...remote.values()].at(-1).recipeIngredient.map((i) => i.originalText);
   assert.ok(notes.includes("400 g whole wheat flour"));
   assert.ok(notes.includes("100 g rye flour"));
   assert.ok(!notes.some((note) => note.includes("white flour")));
