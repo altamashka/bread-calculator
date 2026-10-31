@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { schemaRecipe, validate, calculate } from "./public/math.mjs";
 import { InputError } from "./public/methods-model.mjs";
+export class MealieError extends Error {}
 export const recipeHash = (recipe) =>
   createHash("sha256")
     .update(JSON.stringify(validate(recipe)))
@@ -26,7 +27,7 @@ export async function syncMealie(record, persist) {
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
     if (!response.ok) {
-      const error = new Error(
+      const error = new MealieError(
         `Mealie returned HTTP ${response.status}. Your calculator copy is saved.`,
       );
       error.upstreamStatus = response.status;
@@ -162,6 +163,8 @@ export async function syncMealie(record, persist) {
       title: s.name ?? "",
       summary: s.name ?? "",
       text: s.text,
+      // Mealie 3.10 PATCH omits unset schema defaults before constructing steps.
+      ingredientReferences: [],
     })),
     extras: {
       ...(remote.extras ?? {}),

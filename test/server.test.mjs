@@ -59,6 +59,16 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
       patches++;
       if (Object.values(value.extras ?? {}).some((v) => typeof v !== "string"))
         return send(500, { error: "Mealie extras values must be text" });
+      // Installed Mealie 3.10.2 drops unset defaults on PATCH; its ORM then
+      // requires ingredient_references even though OpenAPI defaults it to [].
+      if (
+        value.recipeInstructions.some(
+          (step) => !Array.isArray(step.ingredientReferences),
+        )
+      )
+        return send(500, {
+          error: "RecipeInstruction requires ingredient_references",
+        });
       if (failPatch) {
         failPatch = false;
         return send(500, {});
@@ -149,6 +159,10 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
   assert.ok(linked.mealieSlug);
   assert.equal(linked.mealieRecipeId, [...remote.values()][0].id);
   assert.equal([...remote.values()][0].recipeInstructions[0].title, "Autolyse");
+  assert.deepEqual(
+    [...remote.values()][0].recipeInstructions[0].ingredientReferences,
+    [],
+  );
   assert.match(
     [...remote.values()][0].recipeInstructions[0].text,
     /30 minutes/,
@@ -200,7 +214,11 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
     await post("/api/recipes", { recipe: { name: "Retry loaf" } })
   ).json();
   failPatch = true;
-  assert.equal((await post("/api/mealie", { id: retry.id })).status, 500);
+  const failedSync = await post("/api/mealie", { id: retry.id });
+  assert.equal(failedSync.status, 502);
+  assert.deepEqual(await failedSync.json(), {
+    error: "Mealie returned HTTP 500. Your calculator copy is saved.",
+  });
   assert.equal(creates, 2);
   assert.equal((await post("/api/mealie", { id: retry.id })).status, 200);
   assert.equal(creates, 2);
