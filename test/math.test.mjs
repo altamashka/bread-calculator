@@ -108,3 +108,17 @@ test("water temperature and mixing calibration use three or four factors in Cels
   assert.throws(() => waterTemperature({ ...input, flour: NaN }));
   assert.throws(() => waterTemperature({ ...input, friction: undefined }));
 });
+
+test("structured ingredient weights preserve blend, starter mass and arbitrary scaling", async () => {
+  const { weighedIngredients } = await import("../public/math.mjs");
+  for (const starterHydration of [0, 50, 100, 200, 500]) {
+    const recipe = { ...defaults(), wholeWheat: 35, rye: 15, starterHydration, milk: 4, oil: 1 };
+    for (const scaled of [recipe, scale(recipe, 1234.567)]) {
+      const rows = weighedIngredients(scaled);
+      near(rows.reduce((sum, row) => sum + row.grams, 0), calculate(scaled).dough);
+      near(rows.filter((row) => row.name.endsWith("flour")).reduce((sum, row) => sum + row.grams, 0), scaled.flour);
+      assert.equal(rows.find((row) => row.name.includes("starter")).note, `(${starterHydration}% hydration)`);
+    }
+  }
+  assert.ok(!weighedIngredients({ ...defaults(), wholeWheat: 100 }).some((row) => row.name === "white flour"));
+});
