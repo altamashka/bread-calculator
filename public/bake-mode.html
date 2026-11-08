@@ -15,6 +15,7 @@
         <nav aria-label="Main navigation"><a href="/">Calculator</a><a href="/methods">Methods</a><a href="/bakes">Bake log</a></nav>
       </header>
       <p id="status" role="status" aria-live="polite">Opening saved recipe…</p>
+      <button id="retrySave" hidden>Retry saving progress</button>
       <section id="bakeSession" hidden>
         <div class="bake-heading">
           <div><p class="eyebrow">YOUR BAKING WORKSPACE</p><h2 id="recipeTitle"></h2><p id="batchSummary"></p></div>
@@ -42,7 +43,7 @@
             <details id="methodPlan" open><summary>All method steps</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
           </section>
         </div>
-        <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Your original formula and method are kept with this bake. Progress stays in this browser tab; record a bake result to keep a permanent log.</p></details>
+        <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Your original formula and method are kept with this bake. Progress is saved to the server. Find this bake in the bake log to resume it on another device.</p></details>
       </section>
       <div class="bake-bottom" hidden><div class="bake-bottom-inner"><p><strong>Keep a record of this bake</strong>Save your observations and what to try next time.</p><a id="recordResult" class="button-link primary" hidden>Record bake result <span aria-hidden="true">→</span></a></div></div>
     </main>

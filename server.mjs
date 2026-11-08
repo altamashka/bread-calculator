@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { validate, validateBlend } from "./public/math.mjs";
 import { validateMethod, InputError } from "./public/methods-model.mjs";
 import { validateBake } from "./public/bakes-model.mjs";
+import { validateBakeSession } from "./public/bake-mode-model.mjs";
 
 import { syncMealie, MealieError, recipeHash } from "./mealie.mjs";
 
@@ -128,7 +129,49 @@ export function createServer() {
           methods: await listRecords(`${dataDir}/methods`),
           blends: await listRecords(`${dataDir}/blends`),
           bakes: await listRecords(`${dataDir}/bakes`),
+          bakeSessions: await listRecords(`${dataDir}/bake-sessions`),
         });
+      if (path === "/api/bake-sessions") {
+        const directory = `${dataDir}/bake-sessions`;
+        if (req.method === "GET") return send(200, await listRecords(directory));
+        if (req.method === "POST") {
+          const input = await body(req), id = input.id ?? randomUUID();
+          if (!idPattern.test(id)) return send(400, { error: "Invalid baking session ID." });
+          let session;
+          try { session = validateBakeSession(input.session); }
+          catch { throw new InputError("Enter a valid baking session."); }
+          if (!idPattern.test(session.recipeId)) throw new InputError("Choose a valid recipe.");
+          if (input.resultId != null && !idPattern.test(input.resultId))
+            throw new InputError("Choose a valid bake result.");
+          const lock = `session:${id}`;
+          if (pending.has(lock)) return send(409, { error: "This bake is already being saved. Try again." });
+          pending.add(lock);
+          try {
+            let previous;
+            try { previous = JSON.parse(await readFile(`${directory}/${id}.json`, "utf8")); }
+            catch (e) { if (e.code !== "ENOENT") throw e; }
+            if (previous) {
+              if (input.revision !== previous.revision)
+                return send(409, { error: "This bake changed elsewhere. Reload it before saving again." });
+              if (session.recipeId !== previous.session.recipeId || session.capturedAt !== previous.session.capturedAt ||
+                  JSON.stringify(session.recipe) !== JSON.stringify(previous.session.recipe))
+                return send(400, { error: "A bake's starting recipe cannot be changed." });
+              if (previous.resultId && previous.resultId !== input.resultId)
+                return send(400, { error: "This bake already has a recorded result." });
+            } else if (input.revision != null) {
+              return send(404, { error: "This bake could not be found." });
+            }
+            if (input.resultId) {
+              try { await readFile(`${dataDir}/bakes/${input.resultId}.json`, "utf8"); }
+              catch (e) { if (e.code === "ENOENT") return send(400, { error: "Save the bake result first." }); throw e; }
+            }
+            const record = { id, session, revision: (previous?.revision ?? 0) + 1,
+              updatedAt: new Date().toISOString(), resultId: input.resultId ?? null };
+            await atomicRecord(directory, record);
+            return send(200, record);
+          } finally { pending.delete(lock); }
+        }
+      }
       if (collections[path]) {
         const c = collections[path];
         if (req.method === "GET")
