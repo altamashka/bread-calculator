@@ -6,7 +6,7 @@ import { duration } from "./methods-model.mjs";
 const params = new URLSearchParams(location.search);
 let recipeId = params.get("recipeId"), sessionId = params.get("sessionId");
 const g = (n) => `${Number(n.toFixed(1)).toLocaleString("en-GB")} g`;
-let session, latest, rows, record, pending = false, saving = false, saveError = false;
+let session, latest, rows, record, lastAttempt, pending = false, saving = false, saveError = false;
 const wide = matchMedia("(min-width: 900px)");
 wide.addEventListener("change", () => { if (session) render(); });
 function persist() {
@@ -23,7 +23,9 @@ async function saveProgress() {
     while (pending) {
       pending = false;
       const snapshot = structuredClone(session);
+      lastAttempt = { revision: record.revision, session: snapshot };
       record = await post("/api/bake-sessions", { id: record.id, revision: record.revision, session: snapshot });
+      lastAttempt = null;
     }
     saveError = false;
     $("status").textContent = "Progress saved. Resume this bake from the bake log.";
@@ -32,7 +34,24 @@ async function saveProgress() {
     $("status").textContent = `Progress could not be saved: ${e.message} Keep this page open and retry.`;
   } finally { saving = false; $("retrySave").hidden = !saveError; }
 }
-$("retrySave").addEventListener("click", () => { saveError = false; saveProgress(); });
+$("retrySave").addEventListener("click", async () => {
+  if (saving) return;
+  saving = true;
+  try {
+    const current = (await api("/api/bake-sessions")).find((r) => r.id === record.id);
+    if (!current || current.resultId) throw Error("This bake is unavailable or already has a result. Open the bake log.");
+    if (current.revision !== record.revision) {
+      if (!lastAttempt || current.revision !== lastAttempt.revision + 1 || !same(current.session, lastAttempt.session))
+        throw Error("This bake changed elsewhere. Reload this page to review and recover this tab’s progress.");
+      record = current;
+    }
+    lastAttempt = null; saveError = false;
+  } catch (e) {
+    $("status").textContent = `Progress could not be saved: ${e.message}`;
+    return;
+  } finally { saving = false; }
+  saveProgress();
+});
 window.addEventListener("beforeunload", (e) => {
   if (pending || saving) { e.preventDefault(); e.returnValue = ""; }
 });
@@ -186,7 +205,7 @@ $("newSession").addEventListener("click", () => {
 try {
   if (sessionId) {
     record = (await api("/api/bake-sessions")).find((r) => r.id === sessionId);
-    if (!record) throw Error("This baking session could not be found. Open the bake log to choose a session.");
+    if (!record) throw Error("This baking session could not be found. Open the bake log or the recipe to start a new bake.");
     if (record.resultId) throw Error("This bake has a saved result. Open it in the bake log.");
     session = validateBakeSession(record.session); recipeId = session.recipeId;
     const local = readDraft(bakeSessionKey(sessionId));
@@ -206,12 +225,20 @@ try {
     if (!latest) throw Error("This saved recipe could not be found. Open it in the calculator first.");
     // Recover an older tab-local session once, without replacing any saved sessions.
     const marker = `bread-bake-migrated:${recipeId}`;
-    let stored = null;
+    let stored = null, migrated = false;
     try { if (!params.has("new") && !sessionStorage.getItem(marker)) stored = readDraft(bakeSessionKey(recipeId)); } catch {}
-    if (stored) { try { session = validateBakeSession(stored); if (session.recipeId !== recipeId) session = null; } catch {} }
+    if (stored) { try { session = validateBakeSession(stored); if (session.recipeId !== recipeId) session = null; else migrated = true; } catch {} }
     session ??= newBakeSession(latest);
-    record = await post("/api/bake-sessions", { session });
-    try { sessionStorage.setItem(marker, "1"); } catch {}
+    sessionId = crypto.randomUUID();
+    history.replaceState(null, "", `/bake?sessionId=${encodeURIComponent(sessionId)}`);
+    try { record = await post("/api/bake-sessions", { id: sessionId, session }); }
+    catch (e) {
+      // A response can be lost after the server commits. Keep the ID in the URL
+      // so reloading can find that same session instead of creating another.
+      try { record = (await api("/api/bake-sessions")).find((r) => r.id === sessionId); } catch {}
+      if (!record) throw Error("Could not confirm the new bake was saved. Reload this page to check, or open the recipe to try again.");
+    }
+    if (migrated) { try { sessionStorage.setItem(marker, "1"); } catch {} }
     sessionId = record.id;
     history.replaceState(null, "", `/bake?sessionId=${encodeURIComponent(sessionId)}`);
   }

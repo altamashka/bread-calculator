@@ -19,6 +19,7 @@ import {
 let records = [],
   recipes = [],
   methods = [],
+  sessions = [],
   selectedRecipe = null,
   selectedMethod = null,
   savedId = null,
@@ -44,7 +45,7 @@ const fmt = (n) =>
   n === null ? "—" : Number(n.toFixed(1)).toLocaleString("en-GB");
 const recovery = draftRecovery({
   key: "bread-bake-draft", element: $("draftRecovery"), isDirty: () => dirty,
-  capture: () => ({ form: formValue(), baseline, savedId, dirty }),
+  capture: () => ({ form: formValue(), baseline, savedId, dirty, sessionId: bakingSession?.id ?? null }),
   restore(value) {
     const b = value.form;
     if (!b || typeof b.observations !== "string" || typeof b.nextTime !== "string") throw Error("Invalid draft");
@@ -52,7 +53,11 @@ const recovery = draftRecovery({
     if (!Array.isArray(b.stepResults) || !Array.isArray(b.ovenStages) || b.ovenStages.length > 12 ||
         b.stepResults.length > (snapshot?.method?.steps.length ?? 0) ||
         [...b.stepResults, ...b.ovenStages].some((row) => !row || typeof row !== "object" || Array.isArray(row))) throw Error("Invalid draft");
-    bakingSession = null;
+    const recoveredSession = value.sessionId ? sessions.find((r) => r.id === value.sessionId) : null;
+    if (value.sessionId && (!recoveredSession || recoveredSession.resultId ||
+        (value.savedId && value.savedId !== recoveredSession.id)))
+      throw Error("The original baking session is unavailable or already completed.");
+    bakingSession = recoveredSession;
     selectedRecipe = snapshot; selectedMethod = snapshot?.method ?? null;
     savedId = records.some((r) => r.id === value.savedId) ? value.savedId : null;
     $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
@@ -611,7 +616,8 @@ $("quickSave").addEventListener("click", () => $("saveBake").click());
 guardUnload(() => dirty);
 clear();
 Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs(), refreshSessions().catch((e) => { $("sessionsStatus").textContent = `Could not load in-progress bakes: ${e.message}`; return []; })])
-  .then(([r, m, , sessions]) => {
+  .then(([r, m, , loadedSessions]) => {
+    sessions = loadedSessions;
     recipes = r;
     methods = m;
     for (const record of recipes)
