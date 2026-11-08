@@ -26,18 +26,20 @@ import {readFile,readdir} from 'node:fs/promises';
 import {validate,calculate,validateBlend} from './public/math.mjs';
 import {validateMethod} from './public/methods-model.mjs';
 import {validateBake} from './public/bakes-model.mjs';
+import {validateBakeSession} from './public/bake-mode-model.mjs';
 const base='http://127.0.0.1:8080';
 const get=async path=>{const r=await fetch(base+path);assert.equal(r.status,200);return r.json()};
 assert.equal((await get('/api/config')).mealie,false);
 const archive=await get('/api/archive');
 const pattern=/^[0-9a-f-]{36}\.json$/;
-for (const [collection,directory,field,check] of [
-  ['blends','/app/data/blends','blend',validateBlend],['recipes','/app/data','recipe',validate],['methods','/app/data/methods','method',validateMethod],['bakes','/app/data/bakes','bake',validateBake]]) {
+for (const [collection,directory,field,check,endpoint=collection] of [
+  ['blends','/app/data/blends','blend',validateBlend],['recipes','/app/data','recipe',validate],['methods','/app/data/methods','method',validateMethod],['bakes','/app/data/bakes','bake',validateBake],
+  ['bakeSessions','/app/data/bake-sessions','session',validateBakeSession,'bake-sessions']]) {
   const names=(await readdir(directory)).filter(n=>pattern.test(n));
   const disk=await Promise.all(names.map(async n=>JSON.parse(await readFile(`${directory}/${n}`,'utf8'))));
   const sorted=rows=>rows.sort((a,b)=>a.id.localeCompare(b.id));
   assert.deepEqual(sorted(archive[collection]),sorted(disk));
-  assert.deepEqual(sorted(await get('/api/'+collection)),sorted(disk));
+  assert.deepEqual(sorted(await get('/api/'+endpoint)),sorted(disk));
   for (const record of disk) {
     check(record[field]);
     if(field==='recipe') assert.ok(Number.isFinite(calculate(record.recipe).hydration));

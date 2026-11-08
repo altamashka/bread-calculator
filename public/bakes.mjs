@@ -19,12 +19,14 @@ import {
 let records = [],
   recipes = [],
   methods = [],
+  sessions = [],
   selectedRecipe = null,
   selectedMethod = null,
   savedId = null,
   baseline = null,
   dirty = false,
-  busy = false;
+  busy = false,
+  bakingSession = null;
 const numbers = [
   "bulkRisePercent",
   "fridgeTempC",
@@ -43,7 +45,7 @@ const fmt = (n) =>
   n === null ? "—" : Number(n.toFixed(1)).toLocaleString("en-GB");
 const recovery = draftRecovery({
   key: "bread-bake-draft", element: $("draftRecovery"), isDirty: () => dirty,
-  capture: () => ({ form: formValue(), baseline, savedId, dirty }),
+  capture: () => ({ form: formValue(), baseline, savedId, dirty, sessionId: bakingSession?.id ?? null }),
   restore(value) {
     const b = value.form;
     if (!b || typeof b.observations !== "string" || typeof b.nextTime !== "string") throw Error("Invalid draft");
@@ -51,6 +53,11 @@ const recovery = draftRecovery({
     if (!Array.isArray(b.stepResults) || !Array.isArray(b.ovenStages) || b.ovenStages.length > 12 ||
         b.stepResults.length > (snapshot?.method?.steps.length ?? 0) ||
         [...b.stepResults, ...b.ovenStages].some((row) => !row || typeof row !== "object" || Array.isArray(row))) throw Error("Invalid draft");
+    const recoveredSession = value.sessionId ? sessions.find((r) => r.id === value.sessionId) : null;
+    if (value.sessionId && (!recoveredSession || recoveredSession.resultId ||
+        (value.savedId && value.savedId !== recoveredSession.id)))
+      throw Error("The original baking session is unavailable or already completed.");
+    bakingSession = recoveredSession;
     selectedRecipe = snapshot; selectedMethod = snapshot?.method ?? null;
     savedId = records.some((r) => r.id === value.savedId) ? value.savedId : null;
     $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
@@ -146,6 +153,7 @@ function methodOptions() {
 function clear() {
   $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
   savedId = null;
+  bakingSession = null;
   selectedRecipe = null;
   selectedMethod = null;
   $("bakeDate").value = today();
@@ -161,6 +169,7 @@ function clear() {
 function open(record) {
   if (!guard(dirty)) return;
   const b = validateBake(record.bake);
+  bakingSession = null;
   savedId = record.id;
   selectedRecipe = b.recipe;
   selectedMethod = b.recipe.method;
@@ -251,6 +260,36 @@ function renderLog() {
       cell(tr, text);
     $("comparisonRows").append(tr);
   }
+}
+async function refreshSessions() {
+  const sessions = await api("/api/bake-sessions");
+  const active = sessions.filter((r) => !r.resultId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  $("sessionList").replaceChildren();
+  for (const record of active) {
+    const session = validateBakeSession(record.session);
+    const item = document.createElement("li");
+    const link = document.createElement("a");
+    link.href = `/bake?sessionId=${encodeURIComponent(record.id)}`;
+    link.textContent = `Resume ${session.recipe.name}`;
+    const detail = document.createElement("span");
+    detail.textContent = ` · started ${new Date(session.capturedAt).toLocaleString("en-GB")} · ${session.weighed.length} ingredients weighed · ${session.completedSteps.length} steps completed`;
+    item.append(link, detail); $("sessionList").append(item);
+  }
+  $("sessionsStatus").textContent = active.length ? "" : "No bakes in progress.";
+  return sessions;
+}
+async function finishSession() {
+  if (!bakingSession) return;
+  const sessions = await api("/api/bake-sessions");
+  const latest = sessions.find((r) => r.id === bakingSession.id);
+  if (!latest) throw Error("The result was saved, but the in-progress bake could not be found. Your result is safe.");
+  if (latest.resultId && latest.resultId !== savedId)
+    throw Error("The result was saved, but this bake is already linked to another result. Your result is safe.");
+  if (!latest.resultId)
+    await post("/api/bake-sessions", { id: latest.id, session: latest.session, revision: latest.revision, resultId: savedId });
+  bakingSession = null;
+  await refreshSessions();
 }
 async function refreshLogs() {
   records = (await api("/api/bakes"))
@@ -347,10 +386,29 @@ $("saveBake").addEventListener("click", async () => {
     const bake = validateBake(submitted);
     busy = true;
     update();
-    const r = await post("/api/bakes", { id: savedId ?? undefined, bake });
+    // A session's UUID is also its result UUID. If the response was lost,
+    // locate the existing result before retrying rather than creating another.
+    if (bakingSession && !savedId) {
+      const existing = (await api("/api/bakes")).find((r) => r.id === bakingSession.id);
+      if (existing) {
+        if (!same(validateBake(existing.bake), bake))
+          throw Error("A different result already uses this bake's ID. It was not overwritten; open the existing result from the log.");
+        const sessionToFinish = bakingSession;
+        dirty = false; open(existing); bakingSession = sessionToFinish;
+        await finishSession();
+        await refreshLogs();
+        notice("Your previously saved result was recovered and linked to this bake.");
+        return;
+      }
+    }
+    const r = await post("/api/bakes", { id: savedId ?? bakingSession?.id ?? undefined, bake });
     savedId = r.id;
     baseline = submitted;
     await refreshLogs();
+    if (bakingSession) {
+      try { await finishSession(); }
+      catch (e) { notice(`Result saved, but the bake is still listed in progress: ${e.message} Save again to retry linking.`, true); return; }
+    }
     notice("Bake result saved. Its recipe and method version are retained.");
   } catch (e) {
     notice(e.message, true);
@@ -557,8 +615,9 @@ $("addOvenStage").addEventListener("click", () => {
 $("quickSave").addEventListener("click", () => $("saveBake").click());
 guardUnload(() => dirty);
 clear();
-Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
-  .then(([r, m]) => {
+Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs(), refreshSessions().catch((e) => { $("sessionsStatus").textContent = `Could not load in-progress bakes: ${e.message}`; return []; })])
+  .then(([r, m, , loadedSessions]) => {
+    sessions = loadedSessions;
     recipes = r;
     methods = m;
     for (const record of recipes)
@@ -574,10 +633,24 @@ Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs()])
     }
     const query = new URLSearchParams(location.search);
     if (query.get("fromBake") === "1") {
-      const stored = readDraft(bakeSessionKey(requested));
+      const sessionId = query.get("sessionId");
+      const storedRecord = sessionId ? sessions.find((r) => r.id === sessionId) : null;
+      const stored = sessionId ? storedRecord?.session : readDraft(bakeSessionKey(requested));
       try {
         const session = validateBakeSession(stored);
-        if (session.recipeId !== requested) throw Error("Wrong snapshot");
+        if (!sessionId && session.recipeId !== requested) throw Error("Wrong snapshot");
+        if (sessionId) {
+          bakingSession = storedRecord;
+          const existing = records.find((r) => r.id === (storedRecord.resultId ?? storedRecord.id));
+          if (existing) {
+            if (!same(existing.bake.recipe, session.recipe))
+              throw Error("A different result already uses this bake's ID; it was not overwritten.");
+            open(existing); bakingSession = storedRecord;
+            notice("A result already uses this bake’s ID. Review it, then save to link it to this bake.");
+            baseline = formValue(); update(); recovery.start(); return;
+          }
+          if (storedRecord.resultId) throw Error("The linked result could not be found.");
+        }
         selectedRecipe = session.recipe; selectedMethod = session.recipe.method;
         $("bakeRecipe").add(new Option(`${session.recipe.name} (baking snapshot)`, "snapshot"));
         $("bakeRecipe").value = "snapshot";
