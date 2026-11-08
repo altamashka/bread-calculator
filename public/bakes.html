@@ -20,7 +20,13 @@
         Record what you actually did and how the bread turned out. Each entry
         keeps its own recipe and method version.
       </p>
-      <nav class="section-nav" aria-label="Bake log sections"><a href="#bakeForm">Record a result</a><a href="#bakeResults">Browse bakes &amp; comparisons</a></nav>
+      <nav class="section-nav" aria-label="Bake log sections"><a href="#inProgress">In-progress bakes</a><a href="#bakeForm">Record a result</a><a href="#bakeResults">Browse bakes &amp; comparisons</a></nav>
+      <section class="panel" id="inProgress" aria-labelledby="inProgressHeading">
+        <h2 id="inProgressHeading">In-progress bakes</h2>
+        <p class="hint">Resume weighing and method progress on any device.</p>
+        <p id="sessionsStatus" role="status">Loading in-progress bakes…</p>
+        <ul id="sessionList"></ul>
+      </section>
       <div id="draftRecovery" class="draft-recovery" role="status" hidden></div>
       <div class="journal-layout">
       <section class="panel" id="bakeForm">
