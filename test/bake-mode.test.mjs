@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { defaults, calculate, weighedIngredients } from "../public/math.mjs";
-import { newBakeSession, validateBakeSession } from "../public/bake-mode-model.mjs";
+import { newBakeSession, validateBakeSession, bakeDraft, recoverableBakeDraft } from "../public/bake-mode-model.mjs";
 import { readDraft, writeDraft } from "../public/drafts.mjs";
 
 test("a running bake keeps its captured recipe and method when saved definitions change", () => {
@@ -54,4 +54,35 @@ test("storage security errors do not prevent the page from loading", () => {
     if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
     else delete globalThis.sessionStorage;
   }
+});
+
+test("acknowledged tab copies do not replace later cross-device progress", () => {
+  const start = newBakeSession({ id: randomUUID(), recipe: defaults() });
+  const local = { ...start, weighed: [0] };
+  const remote = { ...start, weighed: [0, 1] };
+  const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const acknowledged = bakeDraft(local, 2, true);
+  assert.equal(recoverableBakeDraft(acknowledged, { session: remote, revision: 3 }, equal), null);
+  assert.deepEqual(acknowledged.session.weighed, [0]); // The copy was not deleted or modified.
+});
+
+test("unsaved, conflicting, and legacy tab copies require explicit recovery", () => {
+  const start = newBakeSession({ id: randomUUID(), recipe: defaults() });
+  const local = { ...start, weighed: [0] };
+  const remote = { ...start, weighed: [1] };
+  const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const draft = bakeDraft(local, 2, false, { revision: 2, session: start });
+  assert.deepEqual(recoverableBakeDraft(draft, { session: start, revision: 2 }, equal),
+    { session: local, conflict: false, legacy: false });
+  assert.deepEqual(recoverableBakeDraft(draft, { session: remote, revision: 3 }, equal),
+    { session: local, conflict: true, legacy: false });
+  assert.deepEqual(recoverableBakeDraft(local, { session: remote, revision: 3 }, equal),
+    { session: local, conflict: true, legacy: true });
+  assert.equal(recoverableBakeDraft(draft, { session: local, revision: 3 }, equal), null);
+  const other = newBakeSession({ id: randomUUID(), recipe: defaults() });
+  assert.equal(recoverableBakeDraft(draft, { session: other, revision: 2 }, equal), null);
+  // A draft created while a request is in flight is independent of later edits.
+  local.weighed.push(2);
+  assert.deepEqual(draft.session.weighed, [0]);
+  assert.deepEqual(draft.attempt.session.weighed, []);
 });

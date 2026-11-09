@@ -1,5 +1,5 @@
 import { calculate, weighedIngredients } from "./math.mjs";
-import { newBakeSession, validateBakeSession, bakeSessionKey } from "./bake-mode-model.mjs";
+import { newBakeSession, validateBakeSession, bakeSessionKey, bakeDraft, recoverableBakeDraft } from "./bake-mode-model.mjs";
 import { readDraft, writeDraft } from "./drafts.mjs";
 import { $, api, post, same } from "./ui.mjs";
 import { duration } from "./methods-model.mjs";
@@ -9,11 +9,15 @@ const g = (n) => `${Number(n.toFixed(1)).toLocaleString("en-GB")} g`;
 let session, latest, rows, record, lastAttempt, pending = false, saving = false, saveError = false;
 const wide = matchMedia("(min-width: 900px)");
 wide.addEventListener("change", () => { if (session) render(); });
+function rememberDraft(acknowledged = false) {
+  if (record) writeDraft(bakeSessionKey(sessionId), bakeDraft(session, record.revision, acknowledged, lastAttempt));
+}
 function persist() {
-  writeDraft(bakeSessionKey(sessionId), session);
   pending = true;
-  saveError = false;
-  saveProgress();
+  rememberDraft();
+  // Keep the last failed attempt for retry reconciliation, even if the user
+  // continues making changes while the connection is down.
+  if (!saveError) saveProgress();
 }
 async function saveProgress() {
   if (saving || !pending || !record) return;
@@ -24,8 +28,12 @@ async function saveProgress() {
       pending = false;
       const snapshot = structuredClone(session);
       lastAttempt = { revision: record.revision, session: snapshot };
+      rememberDraft();
       record = await post("/api/bake-sessions", { id: record.id, revision: record.revision, session: snapshot });
       lastAttempt = null;
+      // A newer edit may have arrived during the request. Keep it pending
+      // against the newly acknowledged revision rather than marking it saved.
+      rememberDraft(!pending && same(session, snapshot));
     }
     saveError = false;
     $("status").textContent = "Progress saved. Resume this bake from the bake log.";
@@ -46,6 +54,7 @@ $("retrySave").addEventListener("click", async () => {
       record = current;
     }
     lastAttempt = null; saveError = false;
+    rememberDraft();
   } catch (e) {
     $("status").textContent = `Progress could not be saved: ${e.message}`;
     return;
@@ -193,6 +202,7 @@ $("continueMethod").addEventListener("click", () => {
   $("methodPanel").scrollIntoView({ block: "start" });
   $("stepTitle").focus({ preventScroll: true });
 });
+$("bakeNotes").addEventListener("input", () => { session.notes = $("bakeNotes").value; persist(); });
 $("weighLayout").addEventListener("change", () => { session.layout = $("weighLayout").value; persist(); renderWeighing(); });
 $("stepDone").addEventListener("change", () => { session.completedSteps = toggle(session.completedSteps, session.stepIndex, $("stepDone").checked); persist(); renderMethod(); });
 for (const [id, delta] of [["previousStep", -1], ["nextStep", 1]])
@@ -211,11 +221,11 @@ try {
     const local = readDraft(bakeSessionKey(sessionId));
     if (local) {
       try {
-        const recovered = validateBakeSession(local);
-        if (recovered.recipeId === session.recipeId && recovered.capturedAt === session.capturedAt &&
-            same(recovered.recipe, session.recipe) && !same(recovered, session) &&
-            confirm("This tab has progress that differs from the saved bake. Restore this tab’s progress?")) {
-          session = recovered; pending = true;
+        const recovered = recoverableBakeDraft(local, record, same);
+        if (recovered && confirm(recovered.conflict
+          ? "This tab has older or unsaved progress, and the saved bake may have changed elsewhere. Restoring will replace the saved progress and may undo checks or notes made on another device. Restore this tab’s progress?"
+          : "This tab has unsaved progress. Restoring it will replace the currently saved progress. Restore it?")) {
+          session = recovered.session; pending = true;
         }
       } catch {}
     }
@@ -244,6 +254,7 @@ try {
   }
   try { latest = (await api("/api/recipes")).find((r) => r.id === recipeId); } catch {}
   $("status").textContent = "Progress saved. Resume this bake from the bake log.";
+  $("bakeNotes").value = session.notes;
   render(); $("bakeSession").hidden = false;
   if (pending) saveProgress();
   $("editRecipe").href = `/?recipeId=${encodeURIComponent(recipeId)}`;

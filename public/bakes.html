@@ -108,8 +108,12 @@
           autolyse without starter is separate. Use minutes for the whole
           period, e.g. 720 for 12 hours.
         </p>
-        <label for="observations">Observations</label
-        ><textarea
+        <label for="observations">Observations</label>
+        <div id="copyBakeNotesControls" hidden>
+          <button type="button" id="copyBakeNotes">Copy bake notes to observations</button>
+          <p class="hint">Copies the notes loaded when this page opened. This replaces observations; the two fields remain separate afterward.</p>
+        </div>
+        <textarea
           id="observations"
           rows="4"
           maxlength="4000"
@@ -202,6 +206,7 @@
           </p>
           <div id="stepResults"></div>
         </details>
+        <p class="hint">Unsaved notes and measurements are kept only in this browser tab, when browser storage is available. Save them to keep them on the server. When recording a result from an in-progress bake, saving the result completes that bake and removes it from the in-progress list.</p>
         <button class="primary" id="saveBake">Save bake result</button
         ><span class="state" id="bakeState"></span>
         <p id="status" role="status" aria-live="polite"></p>

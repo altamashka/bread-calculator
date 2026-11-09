@@ -43,6 +43,12 @@
             <details id="methodPlan" open><summary>All method steps</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
           </section>
         </div>
+        <section class="bake-card" aria-labelledby="bakeNotesHeading">
+          <h2 id="bakeNotesHeading">Bake notes</h2>
+          <p id="bakeNotesHint" class="hint">Notes save with this in-progress bake so you can continue them on another device.</p>
+          <label for="bakeNotes">Notes</label>
+          <textarea id="bakeNotes" rows="4" maxlength="4000" aria-describedby="bakeNotesHint"></textarea>
+        </section>
         <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Your original formula and method are kept with this bake. Progress is saved to the server. Find this bake in the bake log to resume it on another device.</p></details>
       </section>
       <div class="bake-bottom" hidden><div class="bake-bottom-inner"><p><strong>Keep a record of this bake</strong>Save your observations and what to try next time.</p><a id="recordResult" class="button-link primary" hidden>Record bake result <span aria-hidden="true">→</span></a></div></div>

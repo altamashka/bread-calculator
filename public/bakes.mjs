@@ -123,6 +123,9 @@ function update() {
   $("quickSave").disabled = $("saveBake").disabled;
   $("quickSave").textContent = $("saveBake").textContent;
   $("quickSaveState").textContent = dirty ? "Unsaved changes" : savedId ? "Saved here" : "Not saved";
+  $("copyBakeNotesControls").hidden = !bakingSession || !!bakingSession.resultId ||
+    !bakingSession.session.notes?.trim();
+  $("copyBakeNotes").disabled = busy;
   recovery.track();
   $("bakeRecipe").disabled = busy;
   $("newBake").disabled = busy;
@@ -273,7 +276,10 @@ async function refreshSessions() {
     link.href = `/bake?sessionId=${encodeURIComponent(record.id)}`;
     link.textContent = `Resume ${session.recipe.name}`;
     const detail = document.createElement("span");
-    detail.textContent = ` · started ${new Date(session.capturedAt).toLocaleString("en-GB")} · ${session.weighed.length} ingredients weighed · ${session.completedSteps.length} steps completed`;
+    const viewedStep = session.recipe.method?.steps[session.stepIndex];
+    const lastSaved = new Date(record.updatedAt);
+    const savedLabel = Number.isNaN(lastSaved.getTime()) ? "" : ` · last saved ${lastSaved.toLocaleString("en-GB")}`;
+    detail.textContent = ` · started ${new Date(session.capturedAt).toLocaleString("en-GB")}${savedLabel} · ${session.weighed.length} ingredients weighed · ${session.completedSteps.length} steps completed${viewedStep ? ` · selected step ${session.stepIndex + 1}: ${viewedStep.title}` : ""}`;
     item.append(link, detail); $("sessionList").append(item);
   }
   $("sessionsStatus").textContent = active.length ? "" : "No bakes in progress.";
@@ -318,6 +324,18 @@ async function refreshLogs() {
   $("filterMethod").value = oldMethod;
   renderLog();
 }
+$("copyBakeNotes").addEventListener("click", () => {
+  const notes = bakingSession?.session.notes;
+  if (!notes?.trim() || bakingSession.resultId) return;
+  if (notes.length > 4000) {
+    notice("Bake notes exceed the 4,000-character limit for observations. Please shorten them before copying.", true);
+    return;
+  }
+  if ($("observations").value && !confirm("Replace the existing observations with the loaded bake notes?")) return;
+  $("observations").value = notes;
+  update();
+  notice("Bake notes copied. Changes to either field remain separate; save the result to keep these observations.");
+});
 for (const k of [...numbers, "observations", "nextTime", "bakeDate"])
   $(k).addEventListener("input", () => {
     notice("");
