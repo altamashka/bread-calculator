@@ -1,5 +1,6 @@
 import { validate, calculate } from "./math.mjs";
 import { InputError, methodKey } from "./methods-model.mjs";
+import { validateStepTimings } from "./bake-timing-model.mjs";
 const fields = {
   bulkRisePercent: [0, 1000],
   fridgeTempC: [-30, 40],
@@ -62,6 +63,7 @@ export function validateBake(input) {
       throw new InputError("Total proof time must be at most 10,080 minutes.");
     r.proofMinutes = total;
   }
+  r.stepTimings = validateStepTimings(input.stepTimings, r.recipe.method?.steps.length ?? 0);
   r.stepResults = validateRows(
     input.stepResults,
     "step",

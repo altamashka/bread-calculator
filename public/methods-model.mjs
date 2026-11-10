@@ -1,6 +1,12 @@
 export class InputError extends Error {
   statusCode = 400;
 }
+export const methodIngredientLabels = {
+  flour: "Added flour (all flour types)", water: "Water", salt: "Salt",
+  leaven: "Starter / leaven", milk: "Milk", yeast: "Instant yeast",
+  bakingpowder: "Baking powder", oil: "Oil", sugar: "Sugar", butter: "Butter",
+  eggs: "Eggs", honey: "Honey",
+};
 export function validateMethod(input) {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new InputError("A method is required.");
@@ -39,12 +45,33 @@ export function validateMethod(input) {
       throw new InputError(
         `Rest after step ${i + 1} must be between 0 and 10,080 minutes.`,
       );
+    const additions = s.ingredientAdditions === undefined ? [] : s.ingredientAdditions;
+    if (!Array.isArray(additions) || additions.length > Object.keys(methodIngredientLabels).length)
+      throw new InputError(`Check ingredients for step ${i + 1}.`);
+    const seen = new Set();
+    const ingredientAdditions = additions.map((addition) => {
+      if (!addition || typeof addition !== "object" || Array.isArray(addition) ||
+          typeof addition.key !== "string" || !Object.hasOwn(methodIngredientLabels, addition.key) || seen.has(addition.key) ||
+          typeof addition.percent !== "number" || !Number.isFinite(addition.percent) ||
+          addition.percent <= 0 || addition.percent > 100)
+        throw new InputError(`Use each ingredient once per step, with a portion above 0 and at most 100% (step ${i + 1}).`);
+      seen.add(addition.key);
+      return { key: addition.key, percent: addition.percent };
+    });
     return {
       title: s.title.trim(),
       instructions: s.instructions,
       restMinutes: s.restMinutes,
+      ...(ingredientAdditions.length ? { ingredientAdditions } : {}),
     };
   });
+  const portions = new Map();
+  for (const step of steps) for (const addition of step.ingredientAdditions ?? []) {
+    const total = (portions.get(addition.key) ?? 0) + addition.percent;
+    if (total > 100 + 1e-9)
+      throw new InputError(`The portions of ${methodIngredientLabels[addition.key]} total more than 100%.`);
+    portions.set(addition.key, total);
+  }
   if (steps.reduce((n, s) => n + s.restMinutes, 0) > 43200)
     throw new InputError("Total planned rest must be no more than 30 days.");
   return { name: input.name.trim(), steps };

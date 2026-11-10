@@ -33,6 +33,7 @@ const files = {
   "/bake": ["bake-mode.html", "text/html; charset=utf-8"],
   "/bake-mode.mjs": ["bake-mode.mjs", "text/javascript"],
   "/bake-mode-model.mjs": ["bake-mode-model.mjs", "text/javascript"],
+  "/bake-timing-model.mjs": ["bake-timing-model.mjs", "text/javascript"],
   "/drafts.mjs": ["drafts.mjs", "text/javascript"],
   "/ui.mjs": ["ui.mjs", "text/javascript"],
 };
