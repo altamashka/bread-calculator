@@ -1,71 +1,41 @@
-# Bread calculator
+# Bread Bench
 
-Private bread dough calculator, reusable methods and bake results for Ben. Independently written, inspired by BRDCLC. No analytics, third-party scripts or runtime package dependencies.
+A private bread calculator for Ben: edit dough formulas, reuse methods, follow a bake and record results. Independently written, inspired by BRDCLC. No analytics, third-party scripts or runtime dependencies.
 
-Live on Tailscale: [Calculator](https://bread.tail10db36.ts.net) · [Methods](https://bread.tail10db36.ts.net/methods) · [Bake log](https://bread.tail10db36.ts.net/bakes).
+[Calculator](https://bread.tail10db36.ts.net) · [Methods](https://bread.tail10db36.ts.net/methods) · [Bake log](https://bread.tail10db36.ts.net/bakes) — private Tailscale access required.
 
-## Everyday use
+## Use it
 
-**Calculator:** edit ingredient percentages or grams; both units are visible on every row. Percentages use flour added to the bowl. Total hydration includes starter flour and water. Scale a batch, choose its method and save. Existing saved recipes reopen from the list at the top. The saved recipe ID stays in a short URL across reloads; unsaved formula drafts are retained in this browser tab. Duplicate is an explicit action under the secondary controls and gives the new recipe a different name.
+1. **Calculate:** enter grams or percentages, adjust starter hydration and scale the batch.
+2. **Save:** choose a method and optionally save a linked copy in Mealie.
+3. **Bake:** weigh ingredients by step, record action times and resume on any device.
+4. **Record:** save observations and compare past bakes.
 
-On phones, a fixed action bar keeps Save, unsaved state and the last successful Mealie sync state reachable. The flour breakdown is visible above the ingredients. There is one main save action. With **Save in Mealie too** checked, choose the method in the confirmation dialog; saving keeps the editable recipe here and creates or updates its linked Mealie recipe. With the checkbox off, only the calculator copy is saved. Methods can be omitted for an ingredients-only recipe.
+Percentages use **added flour**; total hydration includes starter flour and water. The default formula weighs 1,970 g at 77.2727% total water hydration. Planned rests are reminders to check the dough, not fermentation predictions.
 
-The optional **Plan your water temperature** helper estimates mixing water temperature from measured room, flour and starter temperatures and your own mixing factor. It can calculate that factor from a completed mix. All temperatures use °C; the helper does not change the recipe or predict fermentation.
+See the [user guide](docs/usage.md) for detailed controls, drafts, exports and backups.
 
-**Bake view:** open a saved recipe and choose **Bake with this recipe** (or **Bake** in the phone action bar). The current method action and timeline lead the workspace. Weigh the ingredients assigned to each step when you reach it; **Preparation** holds any unassigned quantities and is optional. Methods can split an ingredient across steps, such as 90% of the water for autolyse and 10% later. Each portion shows its calculated grams; starter is weighed as a whole ingredient at its saved hydration. A full ingredient list remains available. Checking portions cannot edit the formula, and weighing ahead never blocks starting a method.
+## Run locally
 
-Use **Start action now** and **Finish action / start rest**, or enter the actual times afterwards. A method’s planned rest begins when the action finishes. The workspace shows the next action, its planned due time, elapsed/remaining rest and each step’s actual start/finish. The final action can also have a planned rest. Browsing steps does not record a time; correcting times updates the schedule. Dates use your device’s local time. Persisted timestamps keep the clock correct after reload or returning from another app. This page does not send phone alarms, and planned rests do not predict fermentation readiness. Check dough condition before continuing. Actual action timestamps stay separate from manually recorded bulk/proof and step-and-rest durations.
-
-Each bake keeps the formula and method you started with, even if the saved recipe or method library changes. Portion checks, actual times, method position and bake notes save to the server as you work; resume an in-progress bake from the bake log on any device. **Record bake result** carries the captured formula, method and actual action times into the result. You can explicitly copy bake notes into observations. Multiple bakes can be in progress for one recipe. **Start a new bake** captures the latest saved recipe as a separate session. If saving fails, retry in the workspace; earlier tab-local sessions can be migrated to server storage. Existing recipes retain their method snapshot: select and save an updated method for future bakes to use new ingredient assignments.
-
-**Methods:** build ordered actions with instructions and a rest after each step, in minutes. Optionally choose which ingredients are weighed at each action, using percentages of their full recipe quantities. Split additions must total no more than 100% per ingredient across the method; the remainder stays in optional preparation. Flour assignments apply to every added flour type, and ingredients absent from a recipe are skipped. Reorder steps, undo a removal and preview elapsed time or a schedule from a chosen start time. Rest totals exclude hands-on time and do not predict fermentation. Save named methods to reuse across recipes. Each recipe retains a snapshot of the method selected at save time; choosing an updated library method is explicit.
-
-**Bake log:** desktop shows recording and history side by side; phones show the recording form first, with essential measurements and notes before optional detail. Use the section links to jump to results and comparisons. Record the recipe and method actually used, room/dough temperatures in °C, actual bulk and proof times in minutes, optional batch weight, 1–5 ratings, observations and what to change next time. A method can be changed for one bake without editing the recipe or Mealie. Past entries retain their full weighed formula and method version; both can be inspected. Compare method versions, filter by recipe and export CSV. Unrated or missing measurements are excluded from averages. These are descriptive comparisons, not controlled experiments or claims about an optimal method. Optional sections collect bulk rise, fridge temperature, separate room/cold proof times, oven settings and per-step actual time, dough temperature, measured pH and notes. Separate proof times sum to the total; step times never add to bulk/proof automatically. All optional fields are included in the JSON backup and CSV export.
-
-The default formula is Ben’s recipe: 1,000 g added flour, 750 g water, 20 g salt and 200 g starter at 100% hydration. It weighs 1,970 g and has **77.2727% total water hydration**. Portions are raw dough weights, not baked weights. Calculations retain full precision; weights are displayed to 0.1 g.
-
-The **Flour blend and starter hydration** controls sit beside the flour-weight section. Use them to save named white/whole-wheat/rye blends for reuse across recipes and devices. White flour is the remainder of the added flour. Select a blend and apply it explicitly, or update the selected preset from the current percentages. Recipes and bake snapshots retain their own percentages when presets change. Full JSON archives and volume backups include presets. Starter flour composition and hydration are independent.
-
-Old BRDCLC query links remain compatible. `starter` and `poolish` are combined with `leaven`; they share a single adjustable hydration. The calculator does not infer different flour absorption or yeast substitutions. See [research.md](docs/research.md).
-
-## Storage and Mealie
-
-The calculator owns editable formulas, reusable methods and bake records. Mealie is a linked recipe destination. Its ingredients and chosen method steps are updated when you save with the checkbox enabled. Formula and method snapshots are also stored in the linked recipe’s JSON text in `extras.breadCalculator` metadata. Every Mealie save assigns the existing **Bread** category and preserves any other categories, tags, photos and unrelated fields. Create the Bread category in Mealie before the first sync; if it is missing, the calculator copy is retained and no remote recipe is created. Added white, whole-wheat and rye flours are exported as separate weighed ingredient rows from the saved recipe percentages. Mealie receives numeric gram quantities, food/unit references and separate starter-hydration notes, ready for its ingredient editor and scaling. The backend reuses exact existing food names and the gram unit, creating missing entries; ambiguous food matches stop rather than guessing. Its next save upgrades an older text-only export in place. Bread Bench remains the source of the formula; save scaling changes here to keep both copies aligned. Edits made directly to Mealie ingredients or instructions are not pulled back here.
-
-The backend uses the installed **Mealie v3.10.2** API: first creation uses `POST /api/recipes/create/html-or-json`, then subsequent saves use `PATCH /api/recipes/{slug}`. A stored immutable Mealie ID guards the link. If a linked recipe is renamed in Mealie, its ID is used to resolve the new slug. If it is removed or its identity changes, the app stops instead of creating another copy or overwriting a different recipe.
-
-Existing exports from v1 are linked on first save only when their original name and exact weighed ingredients identify one Mealie recipe. Ambiguous matches stop with a message. A new calculator recipe cannot silently duplicate an existing Mealie name. A failed creation/update retains its link or pending attempt before retrying, avoiding duplicate creates. Unchanged saves do not repeat the update when Bread is already assigned; a later save restores Bread if it was removed. No recipes are deleted by this app.
-
-`MEALIE_URL` and `MEALIE_TOKEN` remain backend-only environment variables. On altamacmini Ben approved reuse of the existing server-side credential; the backend connects to `http://mealie:9000` over the existing `web` Docker network. The browser receives only a configured flag. Redirects are refused. Keep the app private on Tailscale; it has no separate account system.
-
-## Data and backups
-
-The Compose volume contains recipe JSON files at its root, methods in `methods/`, flour blends in `blends/`, in-progress baking sessions in `bake-sessions/` and bake logs in `bakes/`. Files are atomically replaced. Existing recipe files require no bulk migration; optional method fields default to empty. Method changes cannot rewrite previous recipe or bake snapshots. This is a household tool; later saves to the same item win.
-
-Unsaved method and bake-result forms are retained in the current browser tab. After reload or return, a recovery banner lets you restore the earlier draft or keep the current form. Restore never writes to the server until you save; an explicit recipe or baking-snapshot link is not silently replaced by a draft. Browser storage can be unavailable and tab-local data is not a backup.
-
-Download a recipe or method individually, or download the full JSON archive of recipes, methods, flour blends, baking sessions and bakes. Full archive restoration is currently an operator task; the recipe and method import controls accept their individual exported files. Bake CSV is also available for spreadsheet analysis. Protected volume backups run nightly at 03:30 Berlin time and keep 30 automatic copies. An isolated restore drill verified recipes, Mealie identities and historical method/bake snapshots. See [backup and recovery](docs/deployment.md#scheduled-backups-configured-2026-10-16). These are same-host backups; off-host protection is separate.
-
-Saved links identify a server recipe. Unsaved share links include the formula, notes and selected method; long drafts must be saved or downloaded as files. Do not put secrets in notes. Browser draft storage is not a backup and is cleared with the tab/browser session. Downloaded archives and CSV contain personal baking notes; protect them accordingly.
-
-The shared interface uses consistent controls and compact task workspaces across calculator, methods, baking and results. See [interface design](docs/interface-design.md) for the research, design decisions and capability checks.
-
-## Development and Docker
-
-Use Node 24 or newer. No package installation is required.
+Use Node 24 or newer. No package installation is needed.
 
 ```sh
 npm test
 npm start
 ```
 
-Open http://127.0.0.1:8080. `HOST`, `PORT` and `DATA_DIR` override defaults. Local `data/` is ignored.
+Open [localhost:8080](http://127.0.0.1:8080). `HOST`, `PORT` and `DATA_DIR` override the defaults; local `data/` is ignored by Git.
 
-```sh
-docker compose config --quiet
-docker compose up -d --build bread-calculator
-docker compose ps
-curl -fsS http://127.0.0.1:8078/healthz
-```
+Validate Docker configuration with `docker compose config --quiet`. For container builds, private access and server updates, follow the [deployment guide](docs/deployment.md).
 
-The container runs as an unprivileged user, with a read-only root filesystem, dropped capabilities, resource limits, a persistent volume and an HTTP healthcheck. The published port binds loopback only. Watchtower is disabled. Automatic tested-image publishing and a host updater are prepared; server activation is pending approval. See [deployment.md](docs/deployment.md) for the exact server rollout, protected backups and rollback. Preserve the backend token when updating `BREAD_REVISION`.
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [User guide](docs/usage.md) | Calculator, methods, baking, results and data |
+| [Calculations and research](docs/research.md) | Equations, examples, sources and design limits |
+| [Mealie integration](docs/mealie.md) | Setup, sync rules and installed API quirks |
+| [Deployment](docs/deployment.md) | Server setup, backups, releases and rollback |
+| [Deployment pattern](docs/automatic-deployment-guide.md) | Adapting the updater to another app |
+| [Interface design](docs/interface-design.md) | Layout decisions and validation |
+| [Contributor rules](AGENTS.md) | Code ownership, safety and required checks |
