@@ -1,109 +1,77 @@
-# Calculation research — 2026-10-15
+# Calculations and research
 
-## Reference behavior
+[Back to README](../README.md) · [Mealie API findings](mealie.md) · [Interface design](interface-design.md)
 
-Inspected the live HTML and JavaScript of [BRDCLC](http://brdclc.com/?flour=1000&water=75&salt=2&leaven=20). It calculates ingredient weights relative to added flour, supports grams and percentages, scales flour, stores settings in URL parameters, adds optional ingredients and reports total dough weight and hydration. Its leaven, poolish and starter are all assumed to be 100% hydration. Milk counts fully as liquid; eggs, butter and honey do not contribute hydration. Its default starter split expression only works at 100% hydration and is not reused here. No original source or assets are copied into this repository.
+## Calculation rules
 
-Bread Bench preserves the familiar added-flour basis, with explicit labels, and adds adjustable starter hydration, flour blending, target hydration, target batch weight, portions, persistent saved recipes, notes and export. It uses grams rather than approximate cup conversions. Multiple preferments are folded into one combined starter when importing old links.
+Shared calculations live in `public/math.mjs`. Input percentages use **added flour**; reported total hydration includes starter flour and water. Use grams, not approximate cup conversions.
 
-## Sources and conventions
+Let F be added flour, p the starter percentage, h starter hydration as a ratio (100% = 1), and S = F × p / 100.
 
-- [King Arthur: Hydration in bread dough](https://www.kingarthurbaking.com/blog/2023/01/11/bread-hydration): include flour and water in sourdough preferments; flour type changes absorption and handling, not the ratio’s definition. Other liquids can be counted conventionally; eggs and butter are usually excluded from the reported bread hydration despite containing water.
-- [King Arthur: Baker’s math](https://www.kingarthurbaking.com/blog/2022/04/28/what-is-bakers-math-and-how-can-i-use-it-in-my-everyday-bread-baking): ingredient percentages express mass relative to flour. Prefermented flour is distinct from starter mass.
-- [King Arthur: Stiff starter](https://www.kingarthurbaking.com/blog/2015/10/13/artisan-sourdough-bread-tips-part-1): a 50% hydration starter has twice as much flour as water by mass.
-- [Mealie API guide](https://mealie.io/documentation/getting-started/api-usage/): long-lived tokens are created in the profile; the installed instance’s `/docs` and `/openapi.json` describe its actual API.
-- The installed Mealie instance returned version v3.10.2 on 2026-10-15. Its schema requires `ScrapeRecipeData.data` as a string at `/api/recipes/create/html-or-json`. This differs from newer upstream API routes; use the installed schema, not an assumed current upstream endpoint.
-- [Schema.org Recipe](https://schema.org/Recipe) defines the exported recipe representation. No external service is needed to generate it.
+| Quantity | Equation |
+| --- | --- |
+| Starter flour | S / (1 + h) |
+| Starter water | S − starter flour |
+| Total flour | F + starter flour |
+| Total water | Added water + starter water |
+| Total water hydration (%) | 100 × total water / total flour |
+| Conventional liquid hydration (%) | 100 × (total water + milk mass) / total flour |
+| Prefermented flour (%) | 100 × starter flour / total flour |
+| Salt on total flour (%) | 100 × salt / total flour |
+| Dough mass | Added flour + every weighed ingredient, counting the whole starter once |
+| Batch scaling factor | Target mass / current mass; multiply F, retaining percentages |
+| Added water for target hydration H | Total flour × H / 100 − starter water; reject negative results |
 
-## Equations
+Milk counts fully in the separately labelled conventional liquid hydration. Eggs, butter and honey do not contribute to reported water hydration; this is not total chemical water content. Flour blends describe added flour only. Starter flour type is not inferred. There are no automatic absorption multipliers, universal hydration targets or yeast substitutions. Separate poolish/biga builds and their yeast are not modeled.
 
-Let F be added flour, p the starter percentage relative to F, h starter hydration as a ratio (100% = 1), and S = F × p / 100.
+## Known examples
 
-- Starter flour = S / (1 + h).
-- Starter water = S − starter flour.
-- Total flour = F + starter flour.
-- Total water = added water + starter water.
-- Total water hydration = 100 × total water / total flour.
-- Conventional liquid hydration = 100 × (total water + milk mass) / total flour, shown separately when milk is present.
-- Prefermented flour percentage = 100 × starter flour / total flour.
-- Total-flour salt percentage = 100 × salt / total flour.
-- Dough mass = added flour + every weighed ingredient including the entire starter once.
-- Scaling factor = target dough mass / present dough mass; multiply F by this factor, retaining percentages.
-- Added water for target hydration H = total flour × H / 100 − starter water. A negative result is impossible and rejected.
+| Formula | Result |
+| --- | --- |
+| Default: 1,000 g flour, 750 g water, 20 g salt, 200 g starter at 100% | 1,100 g total flour; 850 g total water; 1,970 g dough; 77.2727% hydration; 9.0909% prefermented flour; 1.8182% salt on total flour |
+| King Arthur: 500 g flour, 375 g water, 100 g starter at 100% | 550 g total flour; 425 g total water; 77.2727% hydration |
+| 200 g starter at 50% | 133.3333 g flour and 66.6667 g water |
 
-The flour blend describes added flour only. Starter flour type is not inferred. No automatic absorption multiplier is applied to whole wheat or rye. No universal hydration range or yeast/starter substitution is prescribed. Flour behavior, fermentation temperature, starter maturity and technique vary. Enriched dough’s reported water hydration is not an estimate of its total chemical water content. Poolish and biga yeast contributions are not modeled separately.
+Tests cover these conventions, mass balance, arbitrary starter hydration and batch scaling.
 
-## Worked examples
+## Water temperature and measurements
 
-Ben: F=1,000, water=750, salt=20, starter=200 at 100%. Total flour=1,100, water=850, dough=1,970, hydration=77.2727%, prefermented flour=9.0909%, salt/total flour=1.8182%.
+The conventional estimate is `n × target − room − flour − starter (if present) − friction`, with n = 3 without starter and 4 with starter. Reverse it to calibrate friction from measured water and final dough temperatures. All inputs use °C; friction is a temperature difference, so Fahrenheit conversion must not add a 32°F offset.
 
-King Arthur’s hydration article: 500 g added flour, 375 g water and 100 g starter at 100%. Total flour=550, total water=425; hydration=77.2727%.
+The helper stays separate from the formula. It supplies no default dough target or mixer factor and is neither a heat-capacity model nor a fermentation prediction.
 
-With 200 g starter at 50%, starter flour=133.3333 g and starter water=66.6667 g, not an equal split.
+Bake records collect observations rather than prescribe targets: bulk rise, fridge temperature, room/cold proof, oven stages, measured pH and per-step notes. Separate proof stages replace the total with their sum. Manual step durations include rest but never add to bulk/proof automatically.
 
-## Methods and bake records
+Sources: King Arthur's [desired dough temperature](https://www.kingarthurbaking.com/blog/2018/05/29/desired-dough-temperature), [professional reference](https://www.kingarthurbaking.com/pro/reference/dough-temperature) and [friction calibration](https://www.kingarthurbaking.com/blog/2018/08/27/determining-the-friction-factor-in-baking), checked on 2026-10-15/16.
 
-[King Arthur’s bulk fermentation guide](https://www.kingarthurbaking.com/blog/2019/07/22/bulk-fermentation) discusses folds within bulk fermentation and the importance of dough condition. Its [sourdough baking guide](https://www.kingarthurbaking.com/learn/guides/sourdough/bake) explains the flour-and-water autolyse. These support collecting actual temperatures, fermentation durations and observations rather than treating a fixed timer as a prediction.
+## Methods, snapshots and timing
 
-Storage is a product design choice: formulas and reusable method definitions live in separate collections; a recipe captures the chosen method version, and a bake captures the formula and method actually used. Editing a library method cannot change the apparent procedure of an earlier bake. Method comparisons group by their full saved steps, not just an unchanged name, exclude missing ratings and expose sample counts and temperature/hydration context. The app does not infer causal effects or recommend fermentation timings from small samples.
+Formulas and reusable methods are separate collections. A recipe captures its selected method; a bake captures the formula and method actually used. Library edits cannot rewrite those snapshots. Comparisons group by full saved steps, exclude missing ratings and show sample counts and temperature/hydration context. They do not establish causal effects.
 
-Mealie is a one-way, linked destination, not a second method library. The installed 3.10.2 schema supports partial recipe PATCH with native `recipeInstructions` step `title`, `summary` and `text` fields. The app updates only its managed recipe fields and merges its namespaced extras into existing extras. It retains the remote recipe ID and slug; legacy linking requires one exact name-and-ingredient match. This addresses the original export-only workflow’s inability to update a recipe without copies.
+Ingredient assignments are explicit percentages of each full recipe quantity. `ingredientPlan` calculates portions from the captured formula: all added flours share an allocation, starter stays whole, and unassigned amounts remain optional preparation. Older methods need no assignments or snapshot rewrite.
 
-## Additional reference: breadcalc spreadsheet
+Actual starts/finishes are separate from planned rests and manual fermentation durations. A due time is **actual action finish + planned rest**, including the final step. Navigation records no times; unknown historical times stay unknown.
 
-Ben supplied [breadcalc](https://docs.google.com/spreadsheets/d/1xGGlesIknh4VE1UL9jeBnUatF8gWRAlbvTgt-FbFx6c/edit#gid=1837644571). Read all four tabs and the bounded calculation cells on 2026-10-15; the source was not edited or copied into the app.
+Clocks derive from persisted absolute timestamps and refresh when the page becomes visible, because [browser timers can be delayed or throttled](https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout). Ticks update text without replacing focused fields. Corrections preserve untouched instants and milliseconds, including autumn daylight-saving ambiguity, and reject nonexistent spring times. Save/error messages follow [W3C status guidance](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html); countdown ticks are not live announcements.
 
-The Dough Calculator separates total ingredients, ripe starter, levain build and the main-dough additions. Its percentages use total flour, unlike this app's explicitly labelled added-flour input basis. At its displayed 3,600 g batch, 80% hydration and 2% salt, total flour is 3,600/1.82 = 1,978.02 g. Its 396 g levain contains about 198 g flour, or 10% prefermented flour. Compare formulas by total hydration and prefermented flour, not by assuming a displayed starter percentage has the same denominator.
+A page timer cannot guarantee a phone alarm after suspension. [WebKit's push requirements](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/) need a separate delivery design. That work remains in [issue #26](https://github.com/altamashka/bread-calculator/issues/26).
 
-The Discard Calculator models discard and a yeasted preferment separately. This is useful inspiration for a future multi-build formula model; it must account for seed flour/water and preferment yeast exactly once. The current combined-starter model cannot represent those builds independently.
+Fermentation sources: King Arthur's [bulk guide](https://www.kingarthurbaking.com/blog/2019/07/22/bulk-fermentation) and [autolyse/baking guide](https://www.kingarthurbaking.com/learn/guides/sourdough/bake). Check dough condition instead of treating planned rests as predictions.
 
-The tracker separates method actions from actual observations: temperatures, bulk rise, ambient/cold proof, oven stages and optional pH. This supports the app's separate method library and immutable bake snapshots. Future optional measurements should stay collapsed so recording a simple result remains quick. Its example pH targets and fixed timings are examples, not defaults or recommendations for Ben's dough.
+## Reference tools
 
-The Dough temperature tab calculates water temperature as 4 × desired dough temperature − levain − flour − room − friction factor. Its shown inputs give 30°C water. [King Arthur's desired dough temperature guide](https://www.kingarthurbaking.com/blog/2018/05/29/desired-dough-temperature) describes the three-factor calculation without a preferment and four-factor calculation with one, and notes that friction varies with the mixing process. A future helper should describe this as an estimate, take measured inputs and compare the resulting mixed-dough temperature; it is not a heat-capacity model or fermentation prediction.
+**BRDCLC**, inspected on 2026-10-15: [reference formula](http://brdclc.com/?flour=1000&water=75&salt=2&leaven=20). It uses added-flour percentages, gram/percentage editing, URL settings and 100%-hydration preferments. Bread Bench was written independently without copying source or assets. Imported preferments combine into one adjustable-hydration starter; the reference's fixed starter-split expression is not reused.
 
-Live acceptance found that Mealie 3.10.2's open `extras` API schema permits nested objects, but its SQLite extras value column does not: a nested object produces HTTP 500. Store the namespaced snapshot as JSON text. Integration tests reject non-text extras to match this installed behavior. Failed PATCH retained the linked identity; no duplicate recipe was created.
+**Breadcalc spreadsheet**, all four tabs and bounded calculation cells read on 2026-10-15: [source](https://docs.google.com/spreadsheets/d/1xGGlesIknh4VE1UL9jeBnUatF8gWRAlbvTgt-FbFx6c/edit#gid=1837644571). It was neither edited nor copied into the app.
 
-## Optional measurements and water temperature — 2026-10-16
+- Its dough percentages use total flour. A 3,600 g batch at 80% hydration and 2% salt has 1,978.02 g total flour; 396 g levain contains about 198 g flour, or 10% prefermented flour. Compare total hydration and prefermented flour, not raw starter percentages with different denominators.
+- Its discard/preferment builds suggest a future multi-build model, which must count seed flour, water and yeast once. The current combined starter cannot represent separate builds.
+- Its tracker informed optional observations and immutable methods. Example pH targets and timings are not app defaults. Its four-factor water-temperature example gives 30°C.
 
-Rechecked King Arthur's [professional dough-temperature reference](https://www.kingarthurbaking.com/pro/reference/dough-temperature) and [mixing-friction calibration](https://www.kingarthurbaking.com/blog/2018/08/27/determining-the-friction-factor-in-baking). The conventional estimate is `n × target − room − flour − starter (if present) − friction`, where n is three without preferment and four with preferment. The reverse equation calibrates friction from the measured water and final dough temperatures. All inputs here use Celsius; friction is a temperature difference, not an absolute temperature to convert with a 32°F offset. No default dough target or mixer factor is prescribed. This estimate is not a heat-capacity model and does not predict fermentation.
+Calculation sources: King Arthur's [hydration](https://www.kingarthurbaking.com/blog/2023/01/11/bread-hydration), [baker's math](https://www.kingarthurbaking.com/blog/2022/04/28/what-is-bakers-math-and-how-can-i-use-it-in-my-everyday-bread-baking) and [stiff starter](https://www.kingarthurbaking.com/blog/2015/10/13/artisan-sourdough-bread-tips-part-1) guides.
 
-The helper remains separate from the saved formula. Optional bake measurements record bulk volume increase, fridge temperature, room/cold proof, sequential oven settings and actual observations against each immutable method step. Separate proof stages replace the total with their sum; they are not added to an existing total. Actual step times include that step's rest and are never automatically added to bulk/proof. A measured pH has no target or interpretation supplied by the app.
+## Validation record
 
-For backups, checked [Docker's volume backup and restore documentation](https://docs.docker.com/engine/storage/volumes/). Archive the entire data volume, not the image or container export. Pause only the Bread writer briefly for a consistent snapshot, mount the source read-only in an offline helper using the application user, verify compression and retain a SHA-256 checksum. The restore helper creates a new volume, runs without networking, credentials or published ports, compares all application read APIs against restored files and validates recipes, methods and bakes. It never posts to Mealie. Same-host backups recover application/volume mistakes but do not protect against loss of the host disk; off-host copies remain a separate decision.
+The 2026-11-10 checks covered immutable snapshots, allocation validation, persisted timing and isolated server round trips. Synthetic browser checks covered staged portions, action/rest timing, navigation, recovery, time edits across tabs and layout changes, daylight-saving cases and method editing. Widths of 320, 390, 768, 1024 and 1440 CSS pixels showed no horizontal overflow. Recording advanced keyboard focus without scrolling; ticks preserved focus.
 
-## Mealie method PATCH compatibility — 2026-10-31
-
-Rechecked the installed v3.10.2 `/openapi.json` and redacted server errors after a linked save failed. `RecipeStep.ingredientReferences` has an empty-array schema default, but PATCH drops unset fields before constructing the database instruction. Omitting the field raises `RecipeInstruction.__init__() missing 1 required positional argument: 'ingredient_references'` and returns HTTP 500. Send `ingredientReferences: []` explicitly for every exported step. The mock rejects missing arrays to exercise this installed behavior. Failed updates retain the existing remote identity and can retry without another create. Upstream HTTP failures are returned as a safe 502 message containing only the status, without upstream response bodies or recipe data.
-
-The installed category organizer supports `GET /api/organizers/categories/slug/{category_slug}` and recipe PATCH accepts `recipeCategory` objects. Resolve the existing `bread` category before any recipe write, append it without removing other categories, and ensure the unchanged-formula shortcut cannot skip a missing Bread assignment. A missing category stops with an actionable message. Integration tests cover mixed/all-wholegrain ingredient weights, retained categories, reassignment on unchanged saves and missing-category failure before creation. No live recipe edits were used for these checks.
-
-Live acceptance also found that the category organizer response contains `groupId: null` even though the category has a required database group. Echoing that response in recipe PATCH sets the existing category group to null; Mealie masks the integrity failure as HTTP 400 "Recipe already exists". Send category references as only `{id, name, slug}`, omitting organizer-only fields and unset group ownership. The mock returns the installed null field and rejects forwarding it; the regression fails before reference normalization and passes afterward. The existing category is reused without changing its ownership.
-
-## Structured Mealie ingredients — 2026-10-31
-
-Text-only rows left Mealie's numeric quantity at zero and triggered its unparsed-ingredients warning. The installed ingredient schema accepts numeric `quantity`, `food`/`unit` references and `originalText`. Use `weighedIngredients` in the shared math model for deterministic, full-precision flour/ingredient masses rather than re-parsing rendered strings or invoking Mealie's NLP/OpenAI parsers. Starter hydration remains a separate note; starter flour/water are never added again as ingredients. Mealie stores quantities to three decimals; Bread Bench retains its full calculation precision.
-
-Resolve exact case-insensitive food names and a gram/grams/g unit through the installed paginated `/api/foods` and `/api/units` APIs. Reuse references without echoing library defaults or metadata, create missing names via their normal API, and stop on ambiguous exact matches. A conflicting concurrent creation gets one fresh exact lookup; failed operations retain the recipe identity and remain retryable. Bump the export hash format so a later save upgrades existing linked text rows exactly once. Shared-model tests cover mass balance, scaling, mixed flours and arbitrary starter hydration; mock integration covers reference reuse, pagination, creation, ambiguity, failure and migration. JSON-LD downloads retain readable weighed strings.
-
-## Phone and desktop baking workflow — 2026-10-31
-
-A 390-pixel isolated browser audit found Save around 2,013 pixels below the calculator top and bake-result Save around 2,393 pixels below the log top. The mobile action bar keeps save and local-versus-Mealie status reachable; a dedicated read-only baking view uses shared weighedIngredients values and immutable tab-local recipe/method snapshots. Desktop shows weighing and the current step side by side; phone layouts offer a checklist or one ingredient at a time. A changed saved recipe is labelled explicitly and cannot rewrite the active baking snapshot. Recording a result hands off that snapshot, not the latest saved recipe. Missing snapshots require an explicit recipe selection.
-
-Method and bake forms now offer explicit recovery of unsaved tab-local drafts, including incomplete measurements. Recovery does not silently override a newly opened recipe. Storage failures are caught and reported. The Mealie status endpoint compares the last successful export hash with the saved formula, without contacting Mealie, exposing credentials or changing saved records. It reports local sync history, not a live reconciliation of edits made in Mealie. Planned rests remain labelled plans; checked steps are not fermentation predictions or measured times.
-
-The audit and interaction design were informed by [NN/g's visibility and recognition principles](https://www.nngroup.com/articles/ten-usability-heuristics/), [W3C touch-target guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) and [accessible status updates](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html). Isolated browser checks cover phone, tablet and desktop widths, storage recovery, partial Mealie failures and original-formula bake recording. No production recipe, method, bake or server configuration was changed during development.
-
-## Staged ingredients and actual bake timeline — 2026-11-10
-
-The original bake view presented every ingredient as preparation and stored completed-step checks without timestamps. Method instructions were free text, so the app could not distinguish flour-and-water autolyse from later starter or salt additions. Ingredient allocation is now explicit method data: each step can assign a percentage of the full recipe quantity; any remainder remains optional preparation. The shared `ingredientPlan` in `public/math.mjs` calculates portion masses from the immutable recipe snapshot. All added flour types follow the same flour allocation; starter remains one weighed ingredient without counting its flour and water twice. Assigned portions have separate completion checks from preparation. Old methods remain usable without assigning ingredients, and existing recipe/bake snapshots are not rewritten.
-
-Actual action starts and finishes are stored separately from method rest plans and measured fermentation durations. The documented “rest after” meaning is preserved: its deadline is actual action finish plus planned rest. Starting, finishing and correcting times are explicit; navigation records no time. The final step can also have a rest. Unknown historical times stay unknown. The interface places the current action, ingredients and next due prompt first, with the complete actual timeline available below. Method plans and elapsed clocks are reminders to check the dough, never fermentation predictions.
-
-[MDN’s timer documentation](https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout) describes delayed callbacks and background-tab throttling. The displayed countdown therefore derives from persisted absolute timestamps and the current wall clock, including a refresh on visibility changes, rather than decrementing an in-memory counter. Timer updates change only clock text; they do not replace focused timing fields. Manual corrections retain untouched original instants and milliseconds, including ambiguous autumn daylight-saving times, and reject nonexistent spring daylight-saving local times. [W3C status-message guidance](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html) supports accessible save/error messages without moving focus; the ticking countdown is not an announcing live region.
-
-Phone alarms need a separate delivery design. [WebKit’s Web Push documentation](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/) describes Home Screen web apps, direct-interaction permission requests, service workers and the push service. A page timer alone cannot guarantee delivery when a phone suspends or closes the page. This change supplies the persisted timeline and an explicit no-phone-alarm message; background phone notifications remain tracked in [issue #26](https://github.com/altamashka/bread-calculator/issues/26), without changing private access or server administration.
-
-
-### Validation
-
-The Node built-in test suite passes 48 tests, including mass balance, arbitrary starter hydration, batch scaling, immutable snapshots, allocation validation, persisted timings and isolated server round trips. Synthetic browser checks cover staged mixed-flour, water and starter portions; explicit start/finish, rest expiry and next/final due times; navigation without timestamp creation; portion-check recovery; time edits across tabs and the 900-pixel layout breakpoint; unknown legacy times; exact daylight-saving fold/millisecond preservation; spring-gap rejection; and method split editing/save. Phone, tablet and desktop widths of 320, 390, 768, 1024 and 1440 CSS pixels have no horizontal overflow. Action recording moves keyboard focus to the next available control without scrolling; clock ticks leave focus unchanged. Captures contain only invented local data; these checks do not claim physical-device testing or background phone-alarm delivery.
+These were isolated-data checks, not physical-device tests or proof of background alarm delivery. See [interface validation](interface-design.md#validation) and [backup verification](deployment.md#scheduled-backups).
