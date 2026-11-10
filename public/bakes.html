@@ -53,6 +53,13 @@
           Changing the method here only affects this bake log entry. It does not
           change the saved recipe or Mealie.
         </p>
+        <section id="liveTimingReview" class="snapshot-notice" hidden aria-labelledby="liveTimingHeading">
+          <h3 id="liveTimingHeading">Loaded live bake timeline</h3>
+          <p class="hint">These are the live times loaded when this page opened. Copying replaces only the result timestamps and requires the same method.</p>
+          <p id="liveTimingSummary" style="white-space: pre-line"></p>
+          <button type="button" id="copyLiveTimes">Use loaded live bake times</button>
+          <label id="keepResultTimesLabel" class="check" hidden><input type="checkbox" id="keepResultTimes"/>I reviewed the live timeline and want to keep the result times shown below.</label>
+        </section>
         <details>
           <summary>View recorded formula and method</summary>
           <div id="bakeSnapshot"></div>
@@ -197,12 +204,13 @@
           <div id="ovenStages"></div>
           <button id="addOvenStage">Add oven stage</button>
         </details>
-        <details class="optional-measurements">
+        <details class="optional-measurements" id="stepObservations">
           <summary>What happened at each method step</summary>
           <p class="hint">
-            The plan stays unchanged. Record actual time spent on each step,
-            including its rest. These times are not added to bulk or proof. pH
-            is optional, only if you measured it.
+            Start and finish times from the live bake are carried here and can be corrected.
+            Finish means the action ended, before its planned rest. The separate actual step
+            and rest duration is optional; timestamps do not fill it in. These times are not
+            added to bulk or proof. pH is optional, only if you measured it.
           </p>
           <div id="stepResults"></div>
         </details>
