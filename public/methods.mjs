@@ -1,3 +1,4 @@
+import { ingredients } from "./math.mjs";
 import { draftRecovery } from "./drafts.mjs";
 import { validateMethod, timeline, duration } from "./methods-model.mjs";
 import {
@@ -79,6 +80,7 @@ function update() {
       title.textContent = s.title;
       text.textContent = [
         s.instructions,
+        ...(s.ingredientAdditions ?? []).map((a) => `Weigh and add ${a.percent}% of ${a.key === "flour" ? "added flour" : ingredients[a.key]}.`),
         s.restMinutes
           ? `Then rest ${duration(s.restMinutes)}.`
           : "Continue without a rest.",
@@ -165,6 +167,37 @@ function renderSteps() {
       });
       card.append(lab, input);
     }
+    const additions = document.createElement("fieldset");
+    additions.className = "ingredient-additions";
+    const legend = document.createElement("legend"); legend.textContent = "Ingredients weighed at this step (optional)";
+    const hint = document.createElement("p"); hint.className = "hint";
+    hint.textContent = "Use a percentage of the full recipe quantity. Flour includes all added flour types. Ingredients absent from a recipe are skipped.";
+    additions.append(legend, hint);
+    for (const [additionIndex, addition] of (s.ingredientAdditions ?? []).entries()) {
+      const row = document.createElement("div"); row.className = "addition-editor-row";
+      const keyLabel = document.createElement("label"); keyLabel.textContent = "Ingredient";
+      const select = document.createElement("select"); select.id = `addition-${index}-${additionIndex}-key`; keyLabel.htmlFor = select.id;
+      for (const [key, name] of Object.entries({ flour: "All added flour", ...ingredients })) select.add(new Option(name, key));
+      select.value = addition.key;
+      select.addEventListener("change", () => { addition.key = select.value; notice(""); update(); });
+      const percentLabel = document.createElement("label"); percentLabel.textContent = "Quantity (%)";
+      const percent = document.createElement("input"); percent.type = "number"; percent.min = "0.01"; percent.max = "100"; percent.step = "any";
+      percent.id = `addition-${index}-${additionIndex}-percent`; percentLabel.htmlFor = percent.id; percent.value = addition.percent;
+      percent.addEventListener("input", () => { addition.percent = percent.valueAsNumber; notice(""); update(); });
+      const removeAddition = document.createElement("button"); removeAddition.textContent = "Remove"; removeAddition.setAttribute("aria-label", `Remove ingredient ${additionIndex + 1} from step ${index + 1}`);
+      removeAddition.addEventListener("click", () => { s.ingredientAdditions.splice(additionIndex, 1); if (!s.ingredientAdditions.length) delete s.ingredientAdditions; renderSteps(); });
+      keyLabel.append(select); percentLabel.append(percent); row.append(keyLabel, percentLabel, removeAddition); additions.append(row);
+    }
+    const addAddition = document.createElement("button"); addAddition.textContent = "+ Ingredient at this step";
+    addAddition.addEventListener("click", () => {
+      const used = new Set((s.ingredientAdditions ?? []).map((a) => a.key));
+      const key = Object.keys({ flour: "", ...ingredients }).find((key) => !used.has(key));
+      if (!key) return;
+      (s.ingredientAdditions ??= []).push({ key, percent: 100 }); renderSteps();
+      $(`addition-${index}-${s.ingredientAdditions.length - 1}-key`).focus();
+    });
+    addAddition.disabled = (s.ingredientAdditions?.length ?? 0) >= Object.keys(ingredients).length + 1;
+    additions.append(addAddition); card.append(additions);
     $("stepsEditor").append(card);
   });
   update();

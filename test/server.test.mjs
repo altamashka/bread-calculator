@@ -123,6 +123,10 @@ test("HTTP persistence, method snapshots and Mealie create/update/retry avoid du
         body: JSON.stringify(value),
       }),
     get = async (path) => (await fetch(base + path)).json();
+  const timingModule = await fetch(base + "/bake-timing-model.mjs");
+  assert.equal(timingModule.status, 200);
+  assert.equal(timingModule.headers.get("content-type"), "text/javascript");
+  assert.match(await timingModule.text(), /export function restDeadline/);
   for (const path of ["/", "/methods", "/bakes", "/bake", "/bake-mode.mjs", "/bake-mode-model.mjs", "/drafts.mjs", "/healthz"])
     assert.equal((await fetch(base + path)).status, 200);
   assert.equal(

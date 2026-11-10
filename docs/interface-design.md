@@ -23,7 +23,7 @@ The redesign retains all existing named controls and the following workflows:
 - Bake measurements, per-step observations, oven stages, history filters, method comparisons and CSV export.
 - Explicit draft recovery, local/Mealie status and guards against recording the wrong snapshot.
 
-When weighing is complete, a direct action takes you to the current method step. New progress indicators reflect checked ingredients and completed steps only. They do not estimate fermentation or alter a formula. Short ingredient display labels do not change stored ingredient names or Mealie exports.
+The current method step and actual timeline lead the live bake view. Ingredient portions appear at their assigned step; optional preparation never blocks the method. Explicit start and finish actions record actual timestamps, and the next planned due time follows the completed action’s rest. Browsing steps does not record time. Progress indicators reflect checked portions and completed steps only. They do not estimate fermentation or alter a formula. Short ingredient display labels do not change stored ingredient names or Mealie exports.
 
 ## Validation
 

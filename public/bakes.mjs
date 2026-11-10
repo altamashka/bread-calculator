@@ -26,7 +26,8 @@ let records = [],
   baseline = null,
   dirty = false,
   busy = false,
-  bakingSession = null;
+  bakingSession = null,
+  timingReviewRequired = false;
 const numbers = [
   "bulkRisePercent",
   "fridgeTempC",
@@ -45,21 +46,30 @@ const fmt = (n) =>
   n === null ? "—" : Number(n.toFixed(1)).toLocaleString("en-GB");
 const recovery = draftRecovery({
   key: "bread-bake-draft", element: $("draftRecovery"), isDirty: () => dirty,
-  capture: () => ({ form: formValue(), baseline, savedId, dirty, sessionId: bakingSession?.id ?? null }),
+  capture: () => ({ form: formValue(), baseline, savedId, dirty, sessionId: bakingSession?.id ?? null,
+    sessionRevision: bakingSession?.revision ?? null }),
   restore(value) {
     const b = value.form;
     if (!b || typeof b.observations !== "string" || typeof b.nextTime !== "string") throw Error("Invalid draft");
     const snapshot = b.recipe ? validate(b.recipe) : null;
-    if (!Array.isArray(b.stepResults) || !Array.isArray(b.ovenStages) || b.ovenStages.length > 12 ||
+    if ((b.stepTimings !== undefined && (!Array.isArray(b.stepTimings) ||
+        b.stepTimings.length > (snapshot?.method?.steps.length ?? 0))) ||
+        !Array.isArray(b.stepResults) || !Array.isArray(b.ovenStages) || b.ovenStages.length > 12 ||
         b.stepResults.length > (snapshot?.method?.steps.length ?? 0) ||
         [...b.stepResults, ...b.ovenStages].some((row) => !row || typeof row !== "object" || Array.isArray(row))) throw Error("Invalid draft");
     const recoveredSession = value.sessionId ? sessions.find((r) => r.id === value.sessionId) : null;
     if (value.sessionId && (!recoveredSession || recoveredSession.resultId ||
         (value.savedId && value.savedId !== recoveredSession.id)))
       throw Error("The original baking session is unavailable or already completed.");
+    if (recoveredSession && value.sessionRevision !== recoveredSession.revision) {
+      notice("The in-progress bake changed after this result draft was made. Keep the current form to review its latest timeline; the old draft remains in this tab.", true);
+      throw Error("The bake changed after this draft was made.");
+    }
     bakingSession = recoveredSession;
     selectedRecipe = snapshot; selectedMethod = snapshot?.method ?? null;
     savedId = records.some((r) => r.id === value.savedId) ? value.savedId : null;
+    timingReviewRequired = !!savedId && !!recoveredSession && !sameTimings(b.stepTimings, recoveredSession.session.stepTimings);
+    $("keepResultTimes").checked = false;
     $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
     if (snapshot) {
       $("bakeRecipe").add(new Option(`${snapshot.name} (draft formula)`, "snapshot"));
@@ -84,6 +94,7 @@ function formValue() {
       numbers.map((k) => [k, $(k).value === "" ? null : Number($(k).value)]),
     ),
     stepResults: readRows("stepResults"),
+    stepTimings: readStepTimings(),
     ovenStages: readRows("ovenStages"),
     observations: $("observations").value,
     nextTime: $("nextTime").value,
@@ -123,6 +134,17 @@ function update() {
   $("quickSave").disabled = $("saveBake").disabled;
   $("quickSave").textContent = $("saveBake").textContent;
   $("quickSaveState").textContent = dirty ? "Unsaved changes" : savedId ? "Saved here" : "Not saved";
+  $("copyBakeNotesControls").hidden = !bakingSession || !!bakingSession.resultId ||
+    !bakingSession.session.notes?.trim();
+  $("copyBakeNotes").disabled = busy;
+  const liveTimes = bakingSession?.session.stepTimings ?? [];
+  $("liveTimingReview").hidden = !bakingSession || !!bakingSession.resultId || !timingReviewRequired;
+  $("keepResultTimesLabel").hidden = !timingReviewRequired;
+  $("copyLiveTimes").disabled = busy || !same(selectedMethod, bakingSession?.session.recipe.method);
+  $("liveTimingSummary").textContent = (bakingSession?.session.recipe.method?.steps ?? []).map((step, index) => {
+    const timing = liveTimes[index];
+    return `${index + 1}. ${step.title}: ${timing?.startedAt ? `started ${new Date(timing.startedAt).toLocaleString("en-GB")}` : "start not recorded"}; ${timing?.completedAt ? `finished ${new Date(timing.completedAt).toLocaleString("en-GB")}` : "finish not recorded"}.`;
+  }).join("\n");
   recovery.track();
   $("bakeRecipe").disabled = busy;
   $("newBake").disabled = busy;
@@ -154,6 +176,7 @@ function clear() {
   $("bakeRecipe").querySelector('option[value="snapshot"]')?.remove();
   savedId = null;
   bakingSession = null;
+  timingReviewRequired = false; $("keepResultTimes").checked = false;
   selectedRecipe = null;
   selectedMethod = null;
   $("bakeDate").value = today();
@@ -170,6 +193,7 @@ function open(record) {
   if (!guard(dirty)) return;
   const b = validateBake(record.bake);
   bakingSession = null;
+  timingReviewRequired = false; $("keepResultTimes").checked = false;
   savedId = record.id;
   selectedRecipe = b.recipe;
   selectedMethod = b.recipe.method;
@@ -273,19 +297,37 @@ async function refreshSessions() {
     link.href = `/bake?sessionId=${encodeURIComponent(record.id)}`;
     link.textContent = `Resume ${session.recipe.name}`;
     const detail = document.createElement("span");
-    detail.textContent = ` · started ${new Date(session.capturedAt).toLocaleString("en-GB")} · ${session.weighed.length} ingredients weighed · ${session.completedSteps.length} steps completed`;
+    const viewedStep = session.recipe.method?.steps[session.stepIndex];
+    const lastSaved = new Date(record.updatedAt);
+    const savedLabel = Number.isNaN(lastSaved.getTime()) ? "" : ` · last saved ${lastSaved.toLocaleString("en-GB")}`;
+    const timing = session.stepTimings?.[session.stepIndex];
+    const timingLabel = timing?.completedAt
+      ? ` · action finished ${new Date(timing.completedAt).toLocaleString("en-GB")}`
+      : timing?.startedAt ? ` · action started ${new Date(timing.startedAt).toLocaleString("en-GB")}` : "";
+    detail.textContent = ` · captured ${new Date(session.capturedAt).toLocaleString("en-GB")}${savedLabel} · ${session.weighed.length} ingredients weighed · ${session.completedSteps.length} steps completed${viewedStep ? ` · selected step ${session.stepIndex + 1}: ${viewedStep.title}${timingLabel}` : ""}`;
     item.append(link, detail); $("sessionList").append(item);
   }
   $("sessionsStatus").textContent = active.length ? "" : "No bakes in progress.";
   return sessions;
 }
-async function finishSession() {
-  if (!bakingSession) return;
+function sameTimings(left = [], right = []) {
+  const length = Math.max(left.length, right.length);
+  return Array.from({ length }, (_, index) => index).every((index) =>
+    same(left[index] ?? { startedAt: null, completedAt: null }, right[index] ?? { startedAt: null, completedAt: null }));
+}
+async function currentSessionForResult() {
   const sessions = await api("/api/bake-sessions");
   const latest = sessions.find((r) => r.id === bakingSession.id);
-  if (!latest) throw Error("The result was saved, but the in-progress bake could not be found. Your result is safe.");
+  if (!latest) throw Error("The in-progress bake could not be found. Reload to review before saving.");
   if (latest.resultId && latest.resultId !== savedId)
-    throw Error("The result was saved, but this bake is already linked to another result. Your result is safe.");
+    throw Error("This bake is already linked to another result. Reload to review it.");
+  if (!latest.resultId && latest.revision !== bakingSession.revision)
+    throw Error("This bake changed after the result page opened. Reload to review the latest timeline before completing it.");
+  return latest;
+}
+async function finishSession() {
+  if (!bakingSession) return;
+  const latest = await currentSessionForResult();
   if (!latest.resultId)
     await post("/api/bake-sessions", { id: latest.id, session: latest.session, revision: latest.revision, resultId: savedId });
   bakingSession = null;
@@ -318,6 +360,26 @@ async function refreshLogs() {
   $("filterMethod").value = oldMethod;
   renderLog();
 }
+$("copyLiveTimes").addEventListener("click", () => {
+  if (!bakingSession || !same(selectedMethod, bakingSession.session.recipe.method)) return;
+  if (!confirm("Replace the result’s action timestamps with the loaded live bake times? Other observations and measurements stay as entered.")) return;
+  renderMeasurements({ stepResults: readRows("stepResults"), ovenStages: readRows("ovenStages"),
+    stepTimings: structuredClone(bakingSession.session.stepTimings ?? []) });
+  timingReviewRequired = false; $("keepResultTimes").checked = false;
+  update(); notice("Loaded live bake times copied. Save the result to keep them and complete the bake.");
+});
+$("copyBakeNotes").addEventListener("click", () => {
+  const notes = bakingSession?.session.notes;
+  if (!notes?.trim() || bakingSession.resultId) return;
+  if (notes.length > 4000) {
+    notice("Bake notes exceed the 4,000-character limit for observations. Please shorten them before copying.", true);
+    return;
+  }
+  if ($("observations").value && !confirm("Replace the existing observations with the loaded bake notes?")) return;
+  $("observations").value = notes;
+  update();
+  notice("Bake notes copied. Changes to either field remain separate; save the result to keep these observations.");
+});
 for (const k of [...numbers, "observations", "nextTime", "bakeDate"])
   $(k).addEventListener("input", () => {
     notice("");
@@ -330,9 +392,10 @@ for (const k of [...numbers, "observations", "nextTime", "bakeDate"])
   });
 $("bakeRecipe").addEventListener("change", () => {
   if (
+    (readStepTimings().some((row) => row.startedAt || row.completedAt) ||
     readRows("stepResults").some((row) =>
       Object.values(row).some((v) => v !== null && v !== ""),
-    ) &&
+    )) &&
     !confirm(
       "Changing the recipe clears this entry’s step observations. Continue?",
     )
@@ -358,9 +421,10 @@ $("bakeRecipe").addEventListener("change", () => {
 });
 $("bakeMethod").addEventListener("change", () => {
   if (
+    (readStepTimings().some((row) => row.startedAt || row.completedAt) ||
     readRows("stepResults").some((row) =>
       Object.values(row).some((v) => v !== null && v !== ""),
-    ) &&
+    )) &&
     !confirm(
       "Changing the method clears this entry’s step observations. Continue?",
     )
@@ -386,6 +450,9 @@ $("saveBake").addEventListener("click", async () => {
     const bake = validateBake(submitted);
     busy = true;
     update();
+    if (bakingSession) await currentSessionForResult();
+    if (timingReviewRequired && !$("keepResultTimes").checked)
+      throw Error("Review the loaded live bake timeline. Use its times, or confirm that you want to keep the result times before completing this bake.");
     // A session's UUID is also its result UUID. If the response was lost,
     // locate the existing result before retrying rather than creating another.
     if (bakingSession && !savedId) {
@@ -407,7 +474,7 @@ $("saveBake").addEventListener("click", async () => {
     await refreshLogs();
     if (bakingSession) {
       try { await finishSession(); }
-      catch (e) { notice(`Result saved, but the bake is still listed in progress: ${e.message} Save again to retry linking.`, true); return; }
+      catch (e) { notice(`Result saved, but the bake is still listed in progress: ${e.message} Reload to review the latest timeline, or save again if only linking failed.`, true); return; }
     }
     notice("Bake result saved. Its recipe and method version are retained.");
   } catch (e) {
@@ -451,6 +518,7 @@ $("csv").addEventListener("click", () => {
     "Room proof (min)",
     "Cold proof (min)",
     "Actual steps JSON",
+    "Step timestamps JSON",
     "Oven stages JSON",
   ];
   const data = filtered().map(({ bake: b }) => {
@@ -478,6 +546,7 @@ $("csv").addEventListener("click", () => {
       b.ambientProofMinutes,
       b.coldProofMinutes,
       JSON.stringify(b.stepResults),
+      JSON.stringify(b.stepTimings ?? []),
       JSON.stringify(b.ovenStages),
     ];
   });
@@ -509,12 +578,64 @@ function readRows(id) {
     ),
   );
 }
-function measurementCard(parent, title, row = {}, oven = false) {
+// Keep untouched ISO values exactly as recorded. Converting an existing instant
+// through a local date input can otherwise change precision or an ambiguous DST hour.
+function localDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  return `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+function readTiming(input) {
+  if (!input.value) return null;
+  if (input.value === input.dataset.initial) return input.dataset.original;
+  const date = new Date(input.value);
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/.exec(input.value);
+  if (!parts || !Number.isFinite(date.getTime())) return input.value;
+  const expected = parts.slice(1, 7).map((part) => Number(part ?? 0));
+  const actual = [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()];
+  // A local time inside the spring DST gap is normalized by Date. Keep it
+  // invalid for the validator rather than silently recording a different time.
+  return actual.every((part, index) => part === expected[index]) ? date.toISOString() : input.value;
+}
+function readStepTimings() {
+  return [...$("stepResults").querySelectorAll(":scope > .step-card")].map((card) =>
+    Object.fromEntries([...card.querySelectorAll("[data-timing-field]")]
+      .map((input) => [input.dataset.timingField, readTiming(input)])));
+}
+function timingControls(card, timing) {
+  const summary = document.createElement("p"); summary.className = "hint";
+  const grid = document.createElement("div"); grid.className = "two";
+  for (const [key, title] of [["startedAt", "Action started (local time)"], ["completedAt", "Action finished (before rest, local time)"]]) {
+    const label = document.createElement("label"); label.textContent = title;
+    const input = document.createElement("input"); input.type = "datetime-local"; input.step = "0.001";
+    input.dataset.timingField = key;
+    input.value = localDateTime(timing?.[key]);
+    input.dataset.original = timing?.[key] ?? "";
+    input.dataset.initial = input.value;
+    label.append(input); grid.append(label);
+  }
+  const describe = () => {
+    const times = Object.fromEntries([...grid.querySelectorAll("input")].map((input) => [input.dataset.timingField, readTiming(input)]));
+    const parts = [];
+    for (const [key, title] of [["startedAt", "Started"], ["completedAt", "Finished"]]) {
+      if (times[key] && Number.isFinite(Date.parse(times[key]))) parts.push(`${title} ${new Date(times[key]).toLocaleString("en-GB")}`);
+    }
+    if (times.startedAt && times.completedAt && Date.parse(times.completedAt) >= Date.parse(times.startedAt))
+      parts.push(`${duration((Date.parse(times.completedAt) - Date.parse(times.startedAt)) / 60000)} action elapsed`);
+    summary.textContent = parts.join(" · ") || "No actual start or finish recorded. Checked steps do not supply missing times.";
+  };
+  grid.addEventListener("input", describe);
+  describe(); card.append(summary, grid);
+}
+function measurementCard(parent, title, row = {}, oven = false, timing = {}) {
   const card = document.createElement("div");
   card.className = "step-card";
   const heading = document.createElement("h3");
   heading.textContent = title;
   card.append(heading);
+  if (!oven) timingControls(card, timing);
   const grid = document.createElement("div");
   grid.className = "two";
   card.append(grid);
@@ -593,8 +714,10 @@ function renderMeasurements(b = { ovenStages: readRows("ovenStages") }) {
       $("stepResults"),
       `${i + 1}. ${s.title} · planned rest: ${duration(s.restMinutes)}`,
       b.stepResults?.[i],
+      false, b.stepTimings?.[i],
     ),
   );
+  if (b.stepTimings?.some((row) => row.startedAt || row.completedAt)) $("stepObservations").open = true;
   if (!steps.length) {
     const p = document.createElement("p");
     p.className = "hint";
@@ -646,7 +769,10 @@ Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs(), refreshSes
             if (!same(existing.bake.recipe, session.recipe))
               throw Error("A different result already uses this bake's ID; it was not overwritten.");
             open(existing); bakingSession = storedRecord;
-            notice("A result already uses this bake’s ID. Review it, then save to link it to this bake.");
+            timingReviewRequired = !sameTimings(existing.bake.stepTimings, session.stepTimings);
+            notice(timingReviewRequired
+              ? "This bake already has a saved result with different action times. Review the loaded live timeline below, then use its times or explicitly keep the result times before linking."
+              : "A result already uses this bake’s ID. Review it, then save to link it to this bake.");
             baseline = formValue(); update(); recovery.start(); return;
           }
           if (storedRecord.resultId) throw Error("The linked result could not be found.");
@@ -654,7 +780,7 @@ Promise.all([api("/api/recipes"), api("/api/methods"), refreshLogs(), refreshSes
         selectedRecipe = session.recipe; selectedMethod = session.recipe.method;
         $("bakeRecipe").add(new Option(`${session.recipe.name} (baking snapshot)`, "snapshot"));
         $("bakeRecipe").value = "snapshot";
-        methodOptions(); renderMeasurements();
+        methodOptions(); renderMeasurements({ stepTimings: structuredClone(session.stepTimings ?? []) });
         notice("Baking snapshot loaded. Your original formula and method are retained.");
       } catch {
         selectedRecipe = null; selectedMethod = null; $("bakeRecipe").value = "";

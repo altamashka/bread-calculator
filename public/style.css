@@ -373,3 +373,29 @@ html:has(.bake-bottom:not([hidden])) { --footer-space: 112px; }
 .two > label { display: flex; flex-direction: column; gap: 6px; }
 .two > label > :is(input, select, textarea) { margin-top: auto; }
 #stepTitle, .method-step-list button > span, .schedule strong, .method-preview, .hint, #bakeFormula { overflow-wrap: anywhere; }
+
+/* Live baking: action and actual timeline lead; preparation remains available. */
+#methodPanel { order: -1; }
+.bake-columns { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+.step-timing { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.step-timing details { margin-top: 16px; }
+.step-timing input[type="datetime-local"] { width: 100%; min-width: 0; }
+.rest-clock { margin-top: 20px; padding: 16px; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; }
+#nextPrompt { margin: 0; font-weight: 600; }
+#restCountdown { margin: 8px 0 0; color: var(--brand); font-size: 15px; }
+#restCountdown:empty { display: none; }
+.timeline-actual { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; font-weight: 400; }
+#stepIngredients { margin-block: 20px; }
+#stepIngredients h4 { margin-bottom: 8px; }
+.ingredient-additions { margin-top: 20px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.ingredient-additions legend { font-size: 12px; font-weight: 600; padding-inline: 4px; }
+.addition-editor-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; }
+.addition-editor-row label { min-width: 0; margin: 0; }
+.addition-editor-row button { margin-bottom: 12px; }
+@media (max-width: 899px) { .bake-columns { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) {
+  .addition-editor-row { grid-template-columns: minmax(0, 1fr) 82px; }
+  .addition-editor-row button { grid-column: 1 / -1; margin-bottom: 12px; }
+  .step-timing .bake-step-actions { flex-direction: column; }
+  .rest-clock { padding: 12px; }
+}

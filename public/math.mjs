@@ -144,14 +144,39 @@ const g = (n) => `${Number(n.toFixed(1))} g`;
 export function weighedIngredients(input) {
   const r = validate(input), c = calculate(r);
   return [
-    { name: "white flour", grams: r.flour * (100 - r.wholeWheat - r.rye) / 100, note: "" },
-    { name: "whole wheat flour", grams: r.flour * r.wholeWheat / 100, note: "" },
-    { name: "rye flour", grams: r.flour * r.rye / 100, note: "" },
+    { key: "whiteFlour", name: "white flour", grams: r.flour * (100 - r.wholeWheat - r.rye) / 100, note: "" },
+    { key: "wholeWheat", name: "whole wheat flour", grams: r.flour * r.wholeWheat / 100, note: "" },
+    { key: "rye", name: "rye flour", grams: r.flour * r.rye / 100, note: "" },
     ...Object.entries(c.grams).map(([key, grams]) => ({
-      name: ingredients[key], grams,
+      key, name: ingredients[key], grams,
       note: key === "leaven" ? `(${r.starterHydration}% hydration)` : "",
     })),
   ].filter((row) => row.grams > 0);
+}
+// Method portions use the formula's ingredient groups. Added flour includes
+// every flour component; starter remains one weighed ingredient, counted once.
+export function ingredientPlan(input) {
+  const recipe = validate(input), rows = weighedIngredients(recipe);
+  const steps = recipe.method?.steps ?? [];
+  const groupKey = (row) => ["whiteFlour", "wholeWheat", "rye"].includes(row.key) ? "flour" : row.key;
+  const assigned = new Map();
+  for (const step of steps) for (const { key, percent } of step.ingredientAdditions ?? [])
+    assigned.set(key, (assigned.get(key) ?? 0) + percent);
+  const plan = steps.map((step, stepIndex) => {
+    const portions = new Map((step.ingredientAdditions ?? []).map((a) => [a.key, a.percent]));
+    return rows.flatMap((row, originalIndex) => {
+      const percent = portions.get(groupKey(row)) ?? 0;
+      return percent ? [{ ...row, originalIndex, id: `${stepIndex}:${row.key}`, percent,
+        // Normalize only floating-point overflow at an otherwise complete split.
+        grams: row.grams * percent / Math.max(100, assigned.get(groupKey(row)) ?? 0) }] : [];
+    });
+  });
+  const preparation = rows.flatMap((row, originalIndex) => {
+    const percent = Math.max(0, 100 - (assigned.get(groupKey(row)) ?? 0));
+    return percent > 0 ? [{ ...row, originalIndex, id: `prep:${row.key}`, percent,
+      grams: row.grams * percent / 100 }] : [];
+  });
+  return { preparation, steps: plan };
 }
 export function schemaRecipe(input) {
   const r = validate(input), c = calculate(r);
