@@ -122,3 +122,31 @@ test("structured ingredient weights preserve blend, starter mass and arbitrary s
   }
   assert.ok(!weighedIngredients({ ...defaults(), wholeWheat: 100 }).some((row) => row.name === "white flour"));
 });
+
+test("chocolate inclusions scale with the batch without changing water hydration", async () => {
+  const { weighedIngredients } = await import("../public/math.mjs");
+  const plain = defaults();
+  const recipe = { ...plain, milkChocolate: 8, darkChocolate: 2 };
+  const c = calculate(recipe);
+  assert.equal(c.dough, calculate(plain).dough + 100);
+  assert.equal(c.hydration, calculate(plain).hydration);
+  assert.equal(c.liquidHydration, calculate(plain).liquidHydration);
+  assert.equal(c.grams.milkChocolate, 80);
+  assert.equal(c.grams.darkChocolate, 20);
+  assert.deepEqual(fromQuery(toQuery(recipe)), recipe);
+  assert.ok(schemaRecipe(recipe).recipeIngredient.includes("80 g Milk chocolate"));
+  for (const starterHydration of [0, 50, 100, 125, 200, 500]) {
+    const batch = { ...recipe, starterHydration };
+    const scaled = scale(batch, 1234.567);
+    near(calculate(scaled).dough, 1234.567);
+    near(calculate(scaled).hydration, calculate(batch).hydration);
+    near(calculate(scaled).grams.milkChocolate / calculate(scaled).grams.darkChocolate, 4);
+    near(weighedIngredients(scaled).reduce((n, row) => n + row.grams, 0), 1234.567);
+  }
+  for (const key of ["milkChocolate", "darkChocolate"]) {
+    for (const value of [-1, Infinity, NaN, "8"]) assert.throws(() => validate({ ...recipe, [key]: value }));
+    const legacy = { ...plain };
+    delete legacy[key];
+    assert.equal(validate(legacy)[key], 0);
+  }
+});

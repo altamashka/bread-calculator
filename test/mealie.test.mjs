@@ -135,3 +135,21 @@ test("pending creates recover structured rows using actual weights, not stale or
   assert.equal(record.mealieRecipeId, state.remote.id);
   assert.equal(state.patches, 1);
 });
+
+test("chocolate exports use distinct weighed foods and retain remote identity on repeat saves", async (t) => {
+  const { state, record, persist } = fixture(t);
+  record.recipe = validate({ ...record.recipe, milkChocolate: 8, darkChocolate: 2 });
+  state.remote.extras.keep = "unchanged";
+  const id = record.mealieRecipeId;
+  await syncMealie(record, persist);
+  for (const [name, grams] of [["Milk chocolate", 80], ["Dark chocolate", 20]]) {
+    const row = state.remote.recipeIngredient.find((item) => item.food.name === name);
+    assert.equal(row.quantity, grams);
+    assert.equal(row.unit.name, "gram");
+  }
+  assert.equal(record.mealieRecipeId, id);
+  assert.equal(state.remote.extras.keep, "unchanged");
+  assert.equal(JSON.parse(state.remote.extras.breadCalculator).formula.darkChocolate, 2);
+  assert.deepEqual(await syncMealie(record, persist), { ok: true, changed: false });
+  assert.equal(state.patches, 1);
+});

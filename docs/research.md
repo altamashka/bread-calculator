@@ -22,6 +22,8 @@ Let F be added flour, p the starter percentage, h starter hydration as a ratio (
 | Batch scaling factor | Target mass / current mass; multiply F, retaining percentages |
 | Added water for target hydration H | Total flour × H / 100 − starter water; reject negative results |
 
+Milk and dark chocolate are separate weighed additions. Both count towards dough mass and scale with the batch, but neither changes reported water or liquid hydration. Method portions and Mealie exports include both. Older recipes default to zero chocolate without rewriting stored snapshots.
+
 Milk counts fully in the separately labelled conventional liquid hydration. Eggs, butter and honey do not contribute to reported water hydration; this is not total chemical water content. Flour blends describe added flour only. Starter flour type is not inferred. There are no automatic absorption multipliers, universal hydration targets or yeast substitutions. Separate poolish/biga builds and their yeast are not modeled.
 
 ## Known examples
