@@ -15,6 +15,8 @@ export const defaults = () => ({
   butter: 0,
   eggs: 0,
   honey: 0,
+  milkChocolate: 0,
+  darkChocolate: 0,
   wholeWheat: 0,
   rye: 0,
   portions: 2,
@@ -33,6 +35,8 @@ export const ingredients = {
   butter: "Butter",
   eggs: "Eggs",
   honey: "Honey",
+  milkChocolate: "Milk chocolate",
+  darkChocolate: "Dark chocolate",
 };
 export function validate(input) {
   if (!input || typeof input !== "object" || Array.isArray(input))

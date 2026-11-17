@@ -102,3 +102,23 @@ test("timing validation rejects coercion, invalid dates, missing starts, reverse
   assert.deepEqual(validateStepTimings([{ startedAt: "2026-11-10T12:00:00Z", completedAt: "2026-11-10T12:00:00Z" }], 1),
     [{ startedAt: "2026-11-10T12:00:00Z", completedAt: "2026-11-10T12:00:00Z" }]);
 });
+
+test("chocolate additions retain weights and snapshots through planning, scaling and bake records", () => {
+  const library = { id: randomUUID(), updatedAt: "2026-11-17T10:00:00Z", method: {
+    name: "Fold inclusions", steps: [step([{ key: "milkChocolate", percent: 50 }, { key: "darkChocolate", percent: 100 }])],
+  } };
+  const recipe = validate({ ...defaults(), milkChocolate: 8, darkChocolate: 2, method: methodSnapshot(library) });
+  const plan = ingredientPlan(recipe);
+  assert.equal(plan.steps[0].find((row) => row.key === "milkChocolate").grams, 40);
+  assert.equal(plan.steps[0].find((row) => row.key === "darkChocolate").grams, 20);
+  assert.equal(plan.preparation.find((row) => row.key === "milkChocolate").grams, 40);
+  const session = newBakeSession({ id: randomUUID(), recipe });
+  const bake = validateBake({ date: "2026-11-17", recipe: session.recipe });
+  library.method.steps[0].ingredientAdditions[0].percent = 100;
+  assert.equal(session.recipe.method.steps[0].ingredientAdditions[0].percent, 50);
+  assert.equal(bake.recipe.milkChocolate, 8);
+  assert.equal(bake.recipe.darkChocolate, 2);
+  assert.deepEqual(validateBakeSession(JSON.parse(JSON.stringify(session))).recipe, recipe);
+  const scaled = scale(recipe, 1000);
+  near([...ingredientPlan(scaled).preparation, ...ingredientPlan(scaled).steps.flat()].reduce((n, row) => n + row.grams, 0), 1000);
+});

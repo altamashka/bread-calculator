@@ -6,6 +6,7 @@ export const methodIngredientLabels = {
   leaven: "Starter / leaven", milk: "Milk", yeast: "Instant yeast",
   bakingpowder: "Baking powder", oil: "Oil", sugar: "Sugar", butter: "Butter",
   eggs: "Eggs", honey: "Honey",
+  milkChocolate: "Milk chocolate", darkChocolate: "Dark chocolate",
 };
 export function validateMethod(input) {
   if (!input || typeof input !== "object" || Array.isArray(input))
