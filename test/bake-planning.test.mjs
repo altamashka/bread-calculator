@@ -91,10 +91,11 @@ test("actual stage times survive validation independently of checked steps and m
   assert.equal(bake.stepTimings[0].startedAt, timing.startedAt);
 });
 
-test("timing validation rejects coercion, invalid dates, missing starts, reversed times and wrong method sizes", () => {
+test("timing validation accepts a finish alone and rejects invalid dates, reversed times and wrong method sizes", () => {
   for (const startedAt of [[], {}, 123, "tomorrow", "2026-02-30T12:00:00Z", "2026-11-10T24:00:00Z", "2026-11-10T12:00:00"])
     assert.throws(() => validateStepTimings([{ startedAt }], 1));
-  assert.throws(() => validateStepTimings([{ completedAt: "2026-11-10T12:00:00Z" }], 1));
+  assert.deepEqual(validateStepTimings([{ completedAt: "2026-11-10T12:00:00Z" }], 1),
+    [{ startedAt: null, completedAt: "2026-11-10T12:00:00Z" }]);
   assert.throws(() => validateStepTimings([{ startedAt: "2026-11-10T12:00:00Z", completedAt: "2026-11-10T11:00:00Z" }], 1));
   assert.throws(() => validateStepTimings([{}], 0));
   assert.throws(() => validateStepTimings([[]], 1));

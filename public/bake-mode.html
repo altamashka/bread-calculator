@@ -24,6 +24,19 @@
         <p id="snapshotNotice" class="snapshot-notice" role="status" hidden></p>
         <div class="bake-tabs" role="group" aria-label="Baking view"><button id="methodTab" aria-pressed="true">Step &amp; timeline</button><button id="weighTab" aria-pressed="false">Preparation</button></div>
         <div class="bake-columns">
+          <section id="methodPanel" class="bake-card" aria-label="Follow method" hidden>
+            <div class="progress-line"><p id="stepProgress" role="status" aria-live="polite"></p><progress id="methodMeter" max="100" value="0" aria-label="Method steps completed"></progress></div>
+            <details id="methodPlan"><summary>Choose a step in the timeline</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
+            <div class="current-step"><h3 id="stepTitle" tabindex="-1"></h3><div id="catchUp" hidden><button id="markEarlierDone" aria-describedby="catchUpHint"></button><p id="catchUpHint" class="hint">You can add actual times later from the timeline.</p></div><p id="stepInstructions" class="step-instructions"></p><p id="stepRest"></p><div id="restClock" class="rest-clock"><p id="nextPrompt"></p><p id="restCountdown"></p></div></div>
+            <section id="stepIngredients" aria-labelledby="stepIngredientsHeading" hidden><h4 id="stepIngredientsHeading">Weigh for this step</h4><div id="stepIngredientList"></div></section>
+            <section id="stepTiming" class="step-timing" aria-label="Actual action times">
+              <p id="actualTimes" class="hint"></p>
+              <div class="bake-step-actions"><button id="startAction" class="primary">Start action now</button><button id="finishAction" class="primary" hidden>Finish action</button><button id="markDone">Mark done without time</button><button id="reopenAction" hidden>Reopen action</button></div>
+              <details id="timeEditor"><summary>Add or edit actual times</summary><p class="hint">Use your device’s local time. Finish is the end of hands-on work, before the planned rest. Leave unknown times blank.</p><label for="actionStartedAt">Action started</label><input id="actionStartedAt" type="datetime-local" step="0.001"/><label for="actionCompletedAt">Action finished</label><input id="actionCompletedAt" type="datetime-local" step="0.001"/><div class="bake-step-actions"><button id="saveTimes">Save actual times</button><button id="resetTimes">Reset edits</button></div></details>
+              <p id="timingStatus" role="status" aria-live="polite"></p>
+            </section>
+            <div id="methodActions" class="bake-step-actions"><button id="previousStep">Previous step</button><button id="nextStep">Next step</button></div>
+          </section>
           <section id="weighPanel" class="bake-card" aria-label="Weigh ingredients">
             <div class="bake-card-heading">
               <div><p class="eyebrow">OPTIONAL PREPARATION</p><h2>Weigh ahead</h2></div>
@@ -34,22 +47,6 @@
             <button id="continueMethod" class="primary wide">Go to current step →</button>
             <p class="bake-note">You can start the method without weighing ahead. Ingredients assigned to a step appear with that step.</p><details><summary>Full ingredient quantities</summary><ul id="fullIngredients"></ul></details>
           </section>
-          <section id="methodPanel" class="bake-card" aria-label="Follow method" hidden>
-            <div class="bake-card-heading"><div><p class="eyebrow">YOUR NEXT ACTION</p><h2>Step &amp; timeline</h2></div></div>
-            <div class="progress-line"><p id="stepProgress" role="status" aria-live="polite"></p><progress id="methodMeter" max="100" value="0" aria-label="Method steps completed"></progress></div>
-            <div class="current-step"><h3 id="stepTitle" tabindex="-1"></h3><div id="restClock" class="rest-clock"><p id="nextPrompt"></p><p id="restCountdown"></p></div><p id="stepInstructions" class="step-instructions"></p><p id="stepRest"></p></div>
-            <section id="stepIngredients" aria-labelledby="stepIngredientsHeading"><h4 id="stepIngredientsHeading">Weigh for this step</h4><p id="stepIngredientsHint" class="hint"></p><div id="stepIngredientList"></div></section>
-            <section id="stepTiming" class="step-timing" aria-label="Actual action times">
-              <p id="actualTimes" class="hint"></p>
-              <div class="bake-step-actions"><button id="startAction" class="primary">Start action now</button><button id="finishAction">Finish action / start rest</button><button id="reopenAction" hidden>Reopen action</button></div>
-              <details id="timeEditor"><summary>Enter or correct actual times</summary><p class="hint">Use your device’s local time. Finish is the end of hands-on work, before the planned rest. Leave unknown times blank.</p><label for="actionStartedAt">Action started</label><input id="actionStartedAt" type="datetime-local" step="0.001"/><label for="actionCompletedAt">Action finished</label><input id="actionCompletedAt" type="datetime-local" step="0.001"/><div class="bake-step-actions"><button id="saveTimes">Save actual times</button><button id="resetTimes">Reset edits</button></div></details>
-              <p id="timingStatus" role="status" aria-live="polite"></p>
-            </section>
-
-            <p class="bake-note">Times update when you return to this page. This page does not send phone alarms. Check dough condition before continuing.</p>
-            <div id="methodActions" class="bake-step-actions"><button id="previousStep">Previous step</button><button id="nextStep" class="primary">Next step</button></div>
-            <details id="methodPlan" open><summary>Bake timeline · all steps</summary><div id="methodSteps" class="method-step-list" role="group" aria-label="Method steps"></div></details>
-          </section>
         </div>
         <section class="bake-card" aria-labelledby="bakeNotesHeading">
           <h2 id="bakeNotesHeading">Bake notes</h2>
@@ -57,7 +54,7 @@
           <label for="bakeNotes">Notes</label>
           <textarea id="bakeNotes" rows="4" maxlength="4000" aria-describedby="bakeNotesHint"></textarea>
         </section>
-        <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Your original formula and method are kept with this bake. Progress is saved to the server. Find this bake in the bake log to resume it on another device.</p></details>
+        <details class="session-details"><summary>About this bake</summary><p id="snapshotHint" class="hint"></p><p class="hint">Resume this bake on any device from the bake log. Planned rests are guides. Check the dough before continuing. For a phone alarm, use your device’s timer.</p></details>
       </section>
       <div class="bake-bottom" hidden><div class="bake-bottom-inner"><p><strong>Keep a record of this bake</strong>Save your observations and what to try next time.</p><a id="recordResult" class="button-link primary" hidden>Record bake result <span aria-hidden="true">→</span></a></div></div>
     </main>

@@ -375,8 +375,9 @@ html:has(.bake-bottom:not([hidden])) { --footer-space: 112px; }
 #stepTitle, .method-step-list button > span, .schedule strong, .method-preview, .hint, #bakeFormula { overflow-wrap: anywhere; }
 
 /* Live baking: action and actual timeline lead; preparation remains available. */
-#methodPanel { order: -1; }
 .bake-columns { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+#catchUp { margin-block: 12px; }
+#catchUp .hint { margin: 5px 0 0; }
 .step-timing { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
 .step-timing details { margin-top: 16px; }
 .step-timing input[type="datetime-local"] { width: 100%; min-width: 0; }

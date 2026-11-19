@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { defaults, calculate, weighedIngredients } from "../public/math.mjs";
-import { newBakeSession, validateBakeSession, bakeDraft, recoverableBakeDraft } from "../public/bake-mode-model.mjs";
+import { newBakeSession, validateBakeSession, bakeDraft, recoverableBakeDraft, markEarlierStepsDone } from "../public/bake-mode-model.mjs";
+import { restDeadline } from "../public/bake-timing-model.mjs";
 import { readDraft, writeDraft } from "../public/drafts.mjs";
 
 test("a running bake keeps its captured recipe and method when saved definitions change", () => {
@@ -30,6 +31,29 @@ test("recovered baking progress is bounded by its captured weights and method", 
   assert.equal(restored.layout, "focus");
   assert.equal(restored.tab, "method");
   assert.throws(() => validateBakeSession({ ...session, recipe: { flour: 0 } }));
+});
+
+test("catching up marks only earlier steps and preserves recorded times and ingredient checks", () => {
+  const start = newBakeSession({ id: randomUUID(), recipe: { ...defaults(), method: {
+    name: "Catch-up method",
+    steps: ["Mix", "Fold", "Shape", "Proof", "Bake"].map((title) => ({
+      title, instructions: title, restMinutes: 30,
+    })),
+  } } });
+  const session = validateBakeSession({ ...start, stepIndex: 3, completedSteps: [1], weighed: [0],
+    stepTimings: [{ startedAt: "2026-11-10T07:00:00Z" },
+      { startedAt: "2026-11-10T07:30:00Z", completedAt: "2026-11-10T07:35:00Z" }],
+  });
+  const caughtUp = markEarlierStepsDone(session);
+  assert.deepEqual([...caughtUp.completedSteps].sort(), [0, 1, 2]);
+  assert.deepEqual(session.completedSteps, [1]);
+  assert.deepEqual(caughtUp.stepTimings, session.stepTimings);
+  assert.deepEqual(caughtUp.weighed, [0]);
+  assert.equal(caughtUp.stepIndex, 3);
+  assert.equal(restDeadline(caughtUp, 0), null);
+  assert.equal(restDeadline(caughtUp, 1), "2026-11-10T08:05:00.000Z");
+  assert.equal(restDeadline(caughtUp, 2), null);
+  assert.deepEqual(markEarlierStepsDone(caughtUp), caughtUp);
 });
 
 test("draft recovery round-trips incomplete form data and fails safely if storage is unavailable", () => {

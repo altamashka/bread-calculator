@@ -32,6 +32,15 @@ export function validateBakeSession(value) {
   };
 }
 
+export function unfinishedEarlierSteps(session) {
+  return (session.recipe.method?.steps ?? []).slice(0, session.stepIndex).flatMap((_, index) =>
+    session.completedSteps.includes(index) ? [] : [index]);
+}
+
+export function markEarlierStepsDone(session) {
+  return { ...session, completedSteps: [...session.completedSteps, ...unfinishedEarlierSteps(session)] };
+}
+
 // Keep a tab copy until a later edit replaces it. An acknowledgement means this
 // exact snapshot reached the server, not that it is still the latest revision.
 export function bakeDraft(session, revision, acknowledged, attempt = null) {
