@@ -61,7 +61,7 @@ test("in-progress notes and snapshots survive restart and reject stale writes", 
   })).status, 400);
   assert.equal((await post("/api/bake-sessions", {
     id: created.id, revision: updated.revision,
-    session: { ...progressed, stepTimings: [{ completedAt: "2026-11-10T08:10:00Z" }] },
+    session: { ...progressed, stepTimings: [{ startedAt: "2026-11-10T08:10:00Z", completedAt: "2026-11-10T08:00:00Z" }] },
   })).status, 400);
   const changedAssignment = structuredClone(progressed);
   changedAssignment.recipe.method.steps[0].ingredientAdditions[0].percent = 50;
@@ -79,18 +79,24 @@ test("in-progress notes and snapshots survive restart and reject stale writes", 
   assert.deepEqual((await list()).find((r) => r.id === created.id), updated);
   assert.equal((await list()).find((r) => r.id === second.id).session.notes, "");
   assert.equal((await (await fetch(base + "/api/archive")).json()).bakeSessions.length, 2);
+  const finishOnly = { ...progressed, completedSteps: [0],
+    stepTimings: [{ startedAt: null, completedAt: progressed.stepTimings[0].completedAt }] };
+  const saved = await (await post("/api/bake-sessions", {
+    id: created.id, revision: updated.revision, session: finishOnly,
+  })).json();
+  assert.deepEqual(saved.session, finishOnly);
   const result = await (await post("/api/bakes", {
-    bake: { date: "2026-11-08", recipe: session.recipe, stepTimings: progressed.stepTimings },
+    bake: { date: "2026-11-08", recipe: session.recipe, stepTimings: finishOnly.stepTimings },
   })).json();
   assert.equal((await post("/api/bake-sessions", {
-    id: created.id, revision: updated.revision, session: progressed, resultId: randomUUID(),
+    id: created.id, revision: saved.revision, session: finishOnly, resultId: randomUUID(),
   })).status, 400);
   const finished = await (await post("/api/bake-sessions", {
-    id: created.id, revision: updated.revision, session: progressed, resultId: result.id,
+    id: created.id, revision: saved.revision, session: finishOnly, resultId: result.id,
   })).json();
   assert.equal(finished.resultId, result.id);
-  assert.deepEqual(result.bake.stepTimings, progressed.stepTimings);
-  assert.deepEqual((await (await fetch(base + "/api/archive")).json()).bakes[0].bake.stepTimings, progressed.stepTimings);
+  assert.deepEqual(result.bake.stepTimings, finishOnly.stepTimings);
+  assert.deepEqual((await (await fetch(base + "/api/archive")).json()).bakes[0].bake.stepTimings, finishOnly.stepTimings);
   assert.equal((await post("/api/bake-sessions", {
     id: created.id, revision: finished.revision, session: progressed,
   })).status, 400);
@@ -99,6 +105,8 @@ test("in-progress notes and snapshots survive restart and reject stale writes", 
   const noMethod = newBakeSession({ id: randomUUID(), recipe: defaults() });
   delete noMethod.stepTimings;
   delete noMethod.weighedAdditions;
+  delete noMethod.recipe.milkChocolate;
+  delete noMethod.recipe.darkChocolate;
   let oldNoMethod = await (await post("/api/bake-sessions", { session: noMethod })).json();
   await writeFile(`${process.env.DATA_DIR}/bake-sessions/${oldNoMethod.id}.json`,
     JSON.stringify({ ...oldNoMethod, session: noMethod }));

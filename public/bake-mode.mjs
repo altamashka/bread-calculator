@@ -1,5 +1,8 @@
 import { calculate, weighedIngredients, ingredientPlan } from "./math.mjs";
-import { newBakeSession, validateBakeSession, bakeSessionKey, bakeDraft, recoverableBakeDraft } from "./bake-mode-model.mjs";
+import {
+  newBakeSession, validateBakeSession, bakeSessionKey, bakeDraft, recoverableBakeDraft,
+  unfinishedEarlierSteps, markEarlierStepsDone,
+} from "./bake-mode-model.mjs";
 import { readDraft, writeDraft } from "./drafts.mjs";
 import { $, api, post, same } from "./ui.mjs";
 import { duration } from "./methods-model.mjs";
@@ -50,7 +53,8 @@ $("retrySave").addEventListener("click", async () => {
     const current = (await api("/api/bake-sessions")).find((r) => r.id === record.id);
     if (!current || current.resultId) throw Error("This bake is unavailable or already has a result. Open the bake log.");
     if (current.revision !== record.revision) {
-      if (!lastAttempt || current.revision !== lastAttempt.revision + 1 || !same(current.session, lastAttempt.session))
+      if (!lastAttempt || current.revision !== lastAttempt.revision + 1 ||
+          !same(validateBakeSession(current.session), lastAttempt.session))
         throw Error("This bake changed elsewhere. Reload this page to review and recover this tab’s progress.");
       record = current;
     }
@@ -155,14 +159,14 @@ function guardTimeEdits() {
 function actionTiming(index) { return session.stepTimings[index] ?? { startedAt: null, completedAt: null }; }
 function timingSummary(index) {
   const timing = actionTiming(index);
-  return [timing.startedAt ? `Started ${clockLabel(timing.startedAt)}` : "Start not recorded",
-    timing.completedAt ? `finished ${clockLabel(timing.completedAt)}` : session.completedSteps.includes(index) ? "marked complete; finish not recorded" : "finish not recorded"].join(" · ");
+  return [timing.startedAt && `Started ${clockLabel(timing.startedAt)}`,
+    timing.completedAt && `Finished ${clockLabel(timing.completedAt)}`,
+    session.completedSteps.includes(index) && !timing.completedAt && "Finish time unknown"].filter(Boolean).join(" · ");
 }
 function updateClock() {
   if (!session) return;
   const steps = session.recipe.method?.steps ?? [], index = session.stepIndex, step = steps[index];
-  $("restClock").hidden = !step;
-  if (!step) return;
+  if (!step) { $("restClock").hidden = true; return; }
   const timing = actionTiming(index), next = steps[index + 1], nextTiming = actionTiming(index + 1), now = Date.now();
   let prompt = "", countdown = "";
   if (timing.completedAt) {
@@ -170,35 +174,50 @@ function updateClock() {
     prompt = next ? `Next: ${next.title}. ${step.restMinutes ? `Planned rest ends ${clockLabel(deadline)}.` : "No planned rest; continue when ready."}`
       : step.restMinutes ? `Final planned rest ends ${clockLabel(deadline)}.` : "Final action finished. Record your bake result when ready.";
     if (next && nextTiming.startedAt) countdown = `Next action started ${clockLabel(nextTiming.startedAt)}.`;
+    else if (next && session.completedSteps.includes(index + 1)) countdown = "Next action marked done.";
     else if (step.restMinutes) countdown = now < deadline ? `${duration(Math.ceil((deadline - now) / 60000))} of planned rest remaining` : `Planned rest elapsed${now - deadline >= 60000 ? ` · ${duration(Math.floor((now - deadline) / 60000))} since due` : ""}. Check dough condition.`;
+  } else if (session.completedSteps.includes(index)) {
+    prompt = "Marked done. Add the finish time if you know it.";
   } else if (timing.startedAt) {
-    prompt = "Action in progress. Finish the action to start its planned rest.";
+    prompt = "Action in progress";
     countdown = `Started ${clockLabel(timing.startedAt)} · ${duration(Math.max(0, Math.floor((now - Date.parse(timing.startedAt)) / 60000)))} elapsed`;
   } else {
-    const previous = index > 0 ? actionTiming(index - 1) : null;
-    if (previous?.completedAt) {
-      const deadline = Date.parse(restDeadline(session, index - 1) ?? previous.completedAt);
+    const previousRest = restDeadline(session, index - 1);
+    if (previousRest) {
+      const deadline = Date.parse(previousRest);
       prompt = `This action is planned after the previous rest, at ${clockLabel(deadline)}.`;
       countdown = now < deadline ? `${duration(Math.ceil((deadline - now) / 60000))} until planned start` : "Planned start reached. Check dough condition, then start when ready.";
-    } else prompt = session.completedSteps.includes(index) ? "Previously marked complete without actual times. Enter times if known." : "Start this action when you begin. Browsing steps does not record a time.";
+    }
   }
+  $("restClock").hidden = !prompt;
   if ($("nextPrompt").textContent !== prompt) $("nextPrompt").textContent = prompt;
   if ($("restCountdown").textContent !== countdown) $("restCountdown").textContent = countdown;
 }
-function saveActionTiming(timing) {
+function saveActionTiming(timing, completed = !!timing.completedAt || session.completedSteps.includes(session.stepIndex)) {
   try {
     const timings = [...session.stepTimings];
     while (timings.length <= session.stepIndex) timings.push({ startedAt: null, completedAt: null });
     timings[session.stepIndex] = timing;
-    const hadTimedFinish = !!actionTiming(session.stepIndex).completedAt;
-    const completed = timing.completedAt ? true : hadTimedFinish ? false : session.completedSteps.includes(session.stepIndex);
     const next = validateBakeSession({ ...session, stepTimings: timings, completedSteps: toggle(session.completedSteps, session.stepIndex, completed) });
     session = next; persist(); renderMethod(); $("timingStatus").textContent = "Actual action times updated.";
     return true;
   } catch (e) { $("timingStatus").textContent = e.message; return false; }
 }
+function showStep(index) {
+  if (!guardTimeEdits()) return;
+  session.stepIndex = index;
+  $("timeEditor").open = false;
+  $("methodPlan").open = false;
+  persist();
+  renderMethod();
+  $("stepTitle").focus();
+}
 function renderMethod() {
   const steps = session.recipe.method?.steps ?? [], step = steps[session.stepIndex];
+  const earlierCount = unfinishedEarlierSteps(session).length;
+  $("catchUp").hidden = !earlierCount;
+  $("markEarlierDone").textContent = earlierCount === 1
+    ? "Mark earlier step done" : `Mark ${earlierCount} earlier steps done`;
   $("methodSteps").replaceChildren();
   steps.forEach((item, index) => {
     const button = document.createElement("button");
@@ -207,19 +226,15 @@ function renderMethod() {
     number.textContent = complete ? "✓" : String(index + 1); number.setAttribute("aria-hidden", "true");
     const title = document.createElement("span"); title.textContent = item.title;
     const actual = document.createElement("small"); actual.className = "timeline-actual"; actual.textContent = timingSummary(index);
-    const timing = actionTiming(index);
-    if (timing.completedAt && item.restMinutes) actual.textContent += ` · planned rest ends ${clockLabel(Date.parse(timing.completedAt) + item.restMinutes * 60000)}`;
+    const deadline = restDeadline(session, index);
+    if (deadline) actual.textContent += ` · planned rest ends ${clockLabel(deadline)}`;
     title.append(actual);
     const state = document.createElement("span"); state.className = "method-step-state";
-    state.textContent = complete ? "Done" : index === session.stepIndex ? "Current" : "";
+    state.textContent = complete ? "Done" : index === session.stepIndex ? "Selected" : "";
     button.append(number, title, state);
-    button.setAttribute("aria-label", `Step ${index + 1}: ${item.title}${complete ? ", completed" : ""}${index === session.stepIndex ? ", current" : ""}. ${actual.textContent}`);
+    button.setAttribute("aria-label", `Step ${index + 1}: ${item.title}${complete ? ", completed" : ""}${index === session.stepIndex ? ", selected" : ""}. ${actual.textContent}`);
     button.setAttribute("aria-pressed", String(index === session.stepIndex));
-    button.addEventListener("click", () => {
-      if (!guardTimeEdits()) return;
-      session.stepIndex = index; persist(); renderMethod();
-      $("methodSteps").children[index].focus({ preventScroll: true });
-    });
+    button.addEventListener("click", () => showStep(index));
     $("methodSteps").append(button);
   });
   $("stepProgress").textContent = step
@@ -228,21 +243,25 @@ function renderMethod() {
   $("methodMeter").value = steps.length ? 100 * session.completedSteps.length / steps.length : 0;
   $("stepTitle").textContent = step?.title ?? "Ingredients only";
   $("stepInstructions").textContent = step?.instructions ?? "Edit and save the recipe to choose a method for your next bake.";
-  $("stepRest").hidden = !step;
-  $("stepRest").textContent = step
-    ? (step.restMinutes ? `Planned rest after this step: ${duration(step.restMinutes)}. Check dough condition before continuing.` : "No planned rest after this step.") : "";
+  $("stepRest").hidden = !step?.restMinutes;
+  $("stepRest").textContent = step?.restMinutes ? `Planned rest · ${duration(step.restMinutes)}` : "";
   $("stepTiming").hidden = !step;
-  $("stepIngredients").hidden = !step;
+  const portions = plan.steps[session.stepIndex] ?? [];
+  $("stepIngredients").hidden = !portions.length;
   $("stepIngredientList").replaceChildren();
-  for (const row of (plan.steps[session.stepIndex] ?? [])) $("stepIngredientList").append(weighRow(row, session.weighedAdditions.includes(row.id), (checked) => {
+  for (const row of portions) $("stepIngredientList").append(weighRow(row, session.weighedAdditions.includes(row.id), (checked) => {
     session.weighedAdditions = toggle(session.weighedAdditions, row.id, checked); persist();
   }));
-  $("stepIngredientsHint").textContent = (plan.steps[session.stepIndex]?.length ?? 0) ? "Tick each portion as you weigh it for this action." : "No ingredients assigned. Use Preparation for unassigned quantities; method steps do not infer ingredients from instructions.";
   const timing = actionTiming(session.stepIndex);
+  const complete = session.completedSteps.includes(session.stepIndex);
   $("actualTimes").textContent = timingSummary(session.stepIndex);
-  $("startAction").disabled = !!timing.startedAt || session.completedSteps.includes(session.stepIndex);
-  $("finishAction").disabled = !timing.startedAt || !!timing.completedAt;
-  $("reopenAction").hidden = !session.completedSteps.includes(session.stepIndex);
+  $("actualTimes").hidden = !$("actualTimes").textContent;
+  $("startAction").hidden = complete || !!timing.startedAt;
+  $("finishAction").hidden = complete || !timing.startedAt;
+  $("finishAction").textContent = step?.restMinutes ? "Finish action and start rest" : "Finish action";
+  $("markDone").hidden = complete;
+  $("markDone").textContent = timing.startedAt ? "Mark done without finish time" : "Mark done without time";
+  $("reopenAction").hidden = !complete;
   for (const [id, value] of [["actionStartedAt", timing.startedAt], ["actionCompletedAt", timing.completedAt]]) {
     $(id).value = localTime(value); $(id).dataset.initialValue = $(id).value; $(id).dataset.original = value ?? "";
   }
@@ -276,7 +295,10 @@ function renderLayout() {
   $("methodTab").setAttribute("aria-pressed", String(session.tab === "method"));
 }
 for (const [id, tab] of [["weighTab", "weigh"], ["methodTab", "method"]])
-  $(id).addEventListener("click", () => { session.tab = tab; persist(); renderLayout(); });
+  $(id).addEventListener("click", () => {
+    if (tab === "weigh" && !guardTimeEdits()) return;
+    session.tab = tab; persist(); renderLayout();
+  });
 $("continueMethod").addEventListener("click", () => {
   session.tab = "method"; persist(); renderLayout();
   $("methodPanel").scrollIntoView({ block: "start" });
@@ -291,11 +313,28 @@ $("finishAction").addEventListener("click", () => {
   if (guardTimeEdits() && saveActionTiming({ ...actionTiming(session.stepIndex), completedAt: new Date().toISOString() }))
     ($("nextStep").disabled ? $("reopenAction") : $("nextStep")).focus({ preventScroll: true });
 });
+$("markEarlierDone").addEventListener("click", () => {
+  if (!guardTimeEdits()) return;
+  session = markEarlierStepsDone(session);
+  persist();
+  renderMethod();
+  $("stepTitle").focus();
+});
+$("markDone").addEventListener("click", () => {
+  if (!guardTimeEdits()) return;
+  session.completedSteps = toggle(session.completedSteps, session.stepIndex, true);
+  persist();
+  renderMethod();
+  ($("nextStep").disabled ? $("reopenAction") : $("nextStep")).focus();
+});
 $("reopenAction").addEventListener("click", () => {
   if (!guardTimeEdits()) return;
-  if (!confirm("Reopen this action and clear its recorded finish time? Its start time will be kept.")) return;
-  session.completedSteps = toggle(session.completedSteps, session.stepIndex, false);
-  saveActionTiming({ ...actionTiming(session.stepIndex), completedAt: null });
+  const timing = actionTiming(session.stepIndex);
+  if (timing.completedAt && !confirm("Reopen this action and clear its recorded finish time?")) return;
+  if (saveActionTiming({ ...timing, completedAt: null }, false)) {
+    $("timingStatus").textContent = "Action reopened.";
+    (timing.startedAt ? $("finishAction") : $("startAction")).focus();
+  }
 });
 $("saveTimes").addEventListener("click", () => {
   try {
@@ -319,7 +358,7 @@ setInterval(updateClock, 1000);
 document.addEventListener("visibilitychange", updateClock);
 window.addEventListener("pageshow", updateClock);
 for (const [id, delta] of [["previousStep", -1], ["nextStep", 1]])
-  $(id).addEventListener("click", () => { if (!guardTimeEdits()) return; session.stepIndex += delta; persist(); renderMethod(); });
+  $(id).addEventListener("click", () => showStep(session.stepIndex + delta));
 $("newSession").addEventListener("click", () => {
   if (!guardTimeEdits()) return;
   if (pending || saving) { $("status").textContent = "Wait for progress to save before starting another bake."; return; }

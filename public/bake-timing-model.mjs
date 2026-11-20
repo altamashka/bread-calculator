@@ -19,8 +19,8 @@ export function validateStepTimings(input, stepCount) {
     if (!row || typeof row !== "object" || Array.isArray(row))
       throw new InputError("Enter a valid stage timing.");
     const startedAt = timestamp(row.startedAt), completedAt = timestamp(row.completedAt);
-    if (completedAt && (!startedAt || Date.parse(completedAt) < Date.parse(startedAt)))
-      throw new InputError("A stage must start before it is completed.");
+    if (startedAt && completedAt && Date.parse(completedAt) < Date.parse(startedAt))
+      throw new InputError("The finish time must be at or after the start time.");
     return { startedAt, completedAt };
   });
 }

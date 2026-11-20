@@ -28,7 +28,9 @@ Save a named method for reuse. Recipes retain the method version selected when s
 
 Open a saved recipe and choose **Bake with this recipe** (**Bake** on phones). The current action leads the view, with its ingredient portions and timeline. Preparation is optional; weighing ahead never blocks the method. The full ingredient list remains available, and checking portions cannot change the formula.
 
-Choose **Start action now**, then **Finish action / start rest**, or enter actual times later. A planned rest starts when its action finishes, including the final action's rest. The view shows actual starts/finishes, the next due time and elapsed/remaining rest. Browsing steps records no time; corrections update the schedule. Dates use your device's local time, and saved timestamps keep clocks correct after reload.
+If you missed logging steps, open **Choose a step in the timeline** and select the step you’re doing now. **Mark earlier steps done** checks off the unfinished steps before it and keeps any times you already logged. For a single step, use **Mark done without time**. Revisit a step to add either time under **Add or edit actual times**, or use **Reopen action** if you marked it done by mistake.
+
+To record an action as it happens, choose **Start action now**, then **Finish action**. A recorded finish anchors its planned rest, including the final rest. Browsing steps records no time. Dates use your device’s local time, and saved timestamps keep clocks correct after reload.
 
 Planned rests do not predict readiness. Check the dough before continuing. This page does not send phone alarms.
 

@@ -155,8 +155,9 @@ export function createServer() {
               if (input.revision !== previous.revision)
                 return send(409, { error: "This bake changed elsewhere. Reload it before saving again." });
               if (session.recipeId !== previous.session.recipeId || session.capturedAt !== previous.session.capturedAt ||
-                  JSON.stringify(session.recipe) !== JSON.stringify(previous.session.recipe))
+                  JSON.stringify(session.recipe) !== JSON.stringify(validate(previous.session.recipe)))
                 return send(400, { error: "A bake's starting recipe cannot be changed." });
+              session.recipe = previous.session.recipe;
               if (previous.resultId && previous.resultId !== input.resultId)
                 return send(400, { error: "This bake already has a recorded result." });
             } else if (input.revision != null) {
